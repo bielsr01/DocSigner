@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Upload, Download, Copy, FileSpreadsheet, Type, Loader2 } from "lucide-react";
+import { FileText, Upload, Download, Copy, FileSpreadsheet, Type, Loader2, Plus, Trash2, Edit } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 
@@ -22,6 +22,7 @@ export default function GerarDocumentosPage() {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [inputMethod, setInputMethod] = useState('manual');
   const [manualData, setManualData] = useState<Record<string, string>>({});
+  const [manualBatchData, setManualBatchData] = useState<Record<string, string>[]>([]);
   const [csvData, setCsvData] = useState('');
   const [excelData, setExcelData] = useState('');
   const [batchData, setBatchData] = useState<Record<string, string>[]>([]);
@@ -30,8 +31,45 @@ export default function GerarDocumentosPage() {
 
   const selectedTemplateData = mockTemplates.find(t => t.id === selectedTemplate);
 
+  // Clear data when template changes
+  const handleTemplateChange = (templateId: string) => {
+    setSelectedTemplate(templateId);
+    setManualData({});
+    setManualBatchData([]);
+    setBatchData([]);
+    setCsvData('');
+    setExcelData('');
+  };
+
   const handleManualDataChange = (variable: string, value: string) => {
     setManualData(prev => ({ ...prev, [variable]: value }));
+  };
+
+  const handleAddManualRecord = () => {
+    if (!selectedTemplateData) return;
+    
+    // Check if all required fields are filled
+    const isComplete = selectedTemplateData.variables.every(variable => 
+      manualData[variable] && manualData[variable].trim() !== ''
+    );
+    
+    if (!isComplete) {
+      alert('Por favor, preencha todos os campos antes de adicionar');
+      return;
+    }
+    
+    setManualBatchData(prev => [...prev, { ...manualData }]);
+    setManualData({});
+  };
+
+  const handleRemoveManualRecord = (index: number) => {
+    setManualBatchData(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleEditManualRecord = (index: number) => {
+    const record = manualBatchData[index];
+    setManualData(record);
+    handleRemoveManualRecord(index);
   };
 
   const handleCsvDataPaste = () => {
@@ -84,12 +122,35 @@ export default function GerarDocumentosPage() {
     
     console.log('Starting document generation...');
     
+    // Determine data source and count
+    let dataToProcess;
+    if (inputMethod === 'manual') {
+      if (manualBatchData.length > 0) {
+        dataToProcess = manualBatchData;
+      } else {
+        dataToProcess = [manualData];
+      }
+    } else {
+      dataToProcess = batchData;
+    }
+    
+    console.log('Data to process:', dataToProcess);
+    
     // Simulate generation progress
     const interval = setInterval(() => {
       setGenerationProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
           setIsGenerating(false);
+          // Clear data after generation
+          if (inputMethod === 'manual') {
+            setManualData({});
+            setManualBatchData([]);
+          } else {
+            setBatchData([]);
+            setCsvData('');
+            setExcelData('');
+          }
           return 100;
         }
         return prev + 20;
@@ -120,7 +181,7 @@ export default function GerarDocumentosPage() {
               <CardDescription>Escolha o modelo de documento que deseja utilizar</CardDescription>
             </CardHeader>
             <CardContent>
-              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+              <Select value={selectedTemplate} onValueChange={handleTemplateChange}>
                 <SelectTrigger data-testid="select-template">
                   <SelectValue placeholder="Selecione um modelo..." />
                 </SelectTrigger>
@@ -176,19 +237,97 @@ export default function GerarDocumentosPage() {
                   </TabsList>
                   
                   <TabsContent value="manual" className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {selectedTemplateData.variables.map((variable) => (
-                        <div key={variable}>
-                          <Label htmlFor={`var-${variable}`}>{variable}</Label>
-                          <Input
-                            id={`var-${variable}`}
-                            placeholder={`Digite ${variable.toLowerCase()}...`}
-                            value={manualData[variable] || ''}
-                            onChange={(e) => handleManualDataChange(variable, e.target.value)}
-                            data-testid={`input-${variable.toLowerCase()}`}
-                          />
+                    <div className="space-y-6">
+                      {/* Current Entry Form */}
+                      <div className="border rounded-lg p-4 bg-muted/50">
+                        <h4 className="font-medium mb-3">Entrada {manualBatchData.length + 1}</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {selectedTemplateData.variables.map((variable) => (
+                            <div key={variable}>
+                              <Label htmlFor={`var-${variable}`}>{variable}</Label>
+                              <Input
+                                id={`var-${variable}`}
+                                placeholder={`Digite ${variable.toLowerCase()}...`}
+                                value={manualData[variable] || ''}
+                                onChange={(e) => handleManualDataChange(variable, e.target.value)}
+                                data-testid={`input-${variable.toLowerCase()}`}
+                              />
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                        <div className="flex gap-2 mt-4">
+                          <Button 
+                            onClick={handleAddManualRecord}
+                            data-testid="button-add-manual-record"
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Adicionar Registro
+                          </Button>
+                          {manualBatchData.length > 0 && (
+                            <Button 
+                              variant="outline" 
+                              onClick={() => setManualData({})}
+                              data-testid="button-clear-manual-form"
+                            >
+                              Limpar Campos
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Records Preview */}
+                      {manualBatchData.length > 0 && (
+                        <div>
+                          <h4 className="font-medium mb-3">Registros Adicionados ({manualBatchData.length})</h4>
+                          <div className="border rounded-md">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-12">#</TableHead>
+                                  {selectedTemplateData.variables.map((variable) => (
+                                    <TableHead key={variable}>{variable}</TableHead>
+                                  ))}
+                                  <TableHead className="w-24">Ações</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {manualBatchData.map((record, index) => (
+                                  <TableRow key={index}>
+                                    <TableCell className="font-mono text-sm">
+                                      {index + 1}
+                                    </TableCell>
+                                    {selectedTemplateData.variables.map((variable) => (
+                                      <TableCell key={variable}>
+                                        {record[variable] || '-'}
+                                      </TableCell>
+                                    ))}
+                                    <TableCell>
+                                      <div className="flex gap-1">
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm"
+                                          onClick={() => handleEditManualRecord(index)}
+                                          data-testid={`button-edit-record-${index}`}
+                                        >
+                                          <Edit className="w-3 h-3" />
+                                        </Button>
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm"
+                                          onClick={() => handleRemoveManualRecord(index)}
+                                          data-testid={`button-remove-record-${index}`}
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
                   
@@ -268,13 +407,16 @@ export default function GerarDocumentosPage() {
           )}
 
           {/* Generate Button */}
-          {selectedTemplateData && (inputMethod === 'manual' ? Object.keys(manualData).length > 0 : batchData.length > 0) && (
+          {selectedTemplateData && (inputMethod === 'manual' ? (manualBatchData.length > 0 || (Object.keys(manualData).length > 0 && selectedTemplateData.variables.every(v => manualData[v]?.trim()))) : batchData.length > 0) && (
             <Card>
               <CardHeader>
                 <CardTitle>3. Gerar Documentos</CardTitle>
                 <CardDescription>
                   {inputMethod === 'manual' 
-                    ? 'Gerar um documento com os dados fornecidos' 
+                    ? (manualBatchData.length > 0 
+                        ? `Gerar ${manualBatchData.length} documentos em lote`
+                        : 'Gerar um documento com os dados fornecidos'
+                      )
                     : `Gerar ${batchData.length} documentos em lote`
                   }
                 </CardDescription>
