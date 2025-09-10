@@ -4,10 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { History, FileText, Search, Filter, Eye, Download, Calendar, User, Clock, RefreshCw } from "lucide-react";
+import { History, FileText, Search, Filter, Eye, Clock, RefreshCw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DatePickerRange } from "@/components/ui/date-range-picker";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // TODO: Replace with real data
 const mockHistory = [
@@ -80,11 +79,10 @@ const mockHistory = [
 ];
 
 export default function HistoricoPage() {
-  const [history, setHistory] = useState(mockHistory);
+  const [history] = useState(mockHistory);
   const [searchTerm, setSearchTerm] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [userFilter, setUserFilter] = useState('all');
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
 
   const filteredHistory = history.filter(item => {
@@ -95,18 +93,15 @@ export default function HistoricoPage() {
     
     const matchesAction = actionFilter === 'all' || item.action === actionFilter;
     const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-    const matchesUser = userFilter === 'all' || item.user === userFilter;
-    
     let matchesDate = true;
     if (dateRange.from && dateRange.to) {
       const itemDate = new Date(item.timestamp);
       matchesDate = itemDate >= dateRange.from && itemDate <= dateRange.to;
     }
     
-    return matchesSearch && matchesAction && matchesStatus && matchesUser && matchesDate;
+    return matchesSearch && matchesAction && matchesStatus && matchesDate;
   });
 
-  const uniqueUsers = Array.from(new Set(history.map(item => item.user)));
   
   const getActionIcon = (action: string) => {
     switch (action) {
@@ -190,7 +185,7 @@ export default function HistoricoPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">Buscar</label>
                 <div className="relative">
@@ -238,20 +233,6 @@ export default function HistoricoPage() {
                 </Select>
               </div>
               
-              <div>
-                <label className="text-sm font-medium mb-2 block">Usuário</label>
-                <Select value={userFilter} onValueChange={setUserFilter}>
-                  <SelectTrigger data-testid="select-user-filter">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {uniqueUsers.map(user => (
-                      <SelectItem key={user} value={user}>{user}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               
               <div>
                 <label className="text-sm font-medium mb-2 block">Período</label>
@@ -278,7 +259,6 @@ export default function HistoricoPage() {
                   <TableRow>
                     <TableHead>Atividade</TableHead>
                     <TableHead>Documento/Template</TableHead>
-                    <TableHead>Usuário</TableHead>
                     <TableHead>Data/Hora</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Ações</TableHead>
@@ -313,12 +293,6 @@ export default function HistoricoPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-muted-foreground" />
-                          {item.user}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-muted-foreground" />
                           <span className="text-sm">{formatDateTime(item.timestamp)}</span>
                         </div>
@@ -344,7 +318,7 @@ export default function HistoricoPage() {
                   <History className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Nenhuma atividade encontrada</h3>
                   <p className="text-muted-foreground">
-                    {searchTerm || actionFilter !== 'all' || statusFilter !== 'all' || userFilter !== 'all'
+                    {searchTerm || actionFilter !== 'all' || statusFilter !== 'all'
                       ? 'Tente ajustar os filtros' 
                       : 'O histórico aparecerá aqui conforme você usar o sistema'}
                   </p>
