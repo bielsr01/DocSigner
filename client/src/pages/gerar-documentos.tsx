@@ -23,7 +23,7 @@ export default function GerarDocumentosPage() {
   const [inputMethod, setInputMethod] = useState('manual');
   const [manualData, setManualData] = useState<Record<string, string>>({});
   const [csvData, setCsvData] = useState('');
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [excelData, setExcelData] = useState('');
   const [batchData, setBatchData] = useState<Record<string, string>[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -55,13 +55,25 @@ export default function GerarDocumentosPage() {
     setBatchData(processedData);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setUploadedFile(file);
-      console.log('File uploaded:', file.name);
-      // TODO: Process Excel/CSV file
-    }
+  const handleExcelDataPaste = () => {
+    if (!excelData.trim() || !selectedTemplateData) return;
+    
+    console.log('Processing Excel data:', excelData);
+    
+    // Process tab-separated values (TSV) which is what Excel produces when copying
+    const lines = excelData.trim().split('\n');
+    const headers = lines[0].split('\t').map(h => h.trim());
+    
+    const processedData = lines.slice(1).map(line => {
+      const values = line.split('\t').map(v => v.trim());
+      const row: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index] || '';
+      });
+      return row;
+    });
+    
+    setBatchData(processedData);
   };
 
   const handleGenerate = async () => {
@@ -157,9 +169,9 @@ export default function GerarDocumentosPage() {
                       <Copy className="w-4 h-4 mr-2" />
                       CSV/Colar
                     </TabsTrigger>
-                    <TabsTrigger value="upload" data-testid="tab-upload">
+                    <TabsTrigger value="excel" data-testid="tab-excel">
                       <FileSpreadsheet className="w-4 h-4 mr-2" />
-                      Excel/CSV
+                      Excel
                     </TabsTrigger>
                   </TabsList>
                   
@@ -198,23 +210,25 @@ export default function GerarDocumentosPage() {
                     </Button>
                   </TabsContent>
                   
-                  <TabsContent value="upload" className="space-y-4">
+                  <TabsContent value="excel" className="space-y-4">
                     <div>
-                      <Label htmlFor="file-upload">Arquivo Excel/CSV</Label>
-                      <Input
-                        id="file-upload"
-                        type="file"
-                        accept=".xlsx,.xls,.csv"
-                        onChange={handleFileUpload}
-                        data-testid="input-file-upload"
+                      <Label htmlFor="excel-data">Dados do Excel</Label>
+                      <Textarea
+                        id="excel-data"
+                        placeholder={`Cole os dados copiados diretamente do Excel:\n${selectedTemplateData.variables.join('\t')}\nJoão Silva\tCurso React\t15/01/2024\tProf. Maria\nAna Costa\tCurso Node.js\t16/01/2024\tProf. João`}
+                        rows={6}
+                        value={excelData}
+                        onChange={(e) => setExcelData(e.target.value)}
+                        data-testid="textarea-excel-data"
                       />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Dica: Selecione e copie (Ctrl+C) as linhas e colunas diretamente do Excel, depois cole aqui
+                      </p>
                     </div>
-                    {uploadedFile && (
-                      <div className="p-3 bg-muted rounded-md">
-                        <p className="text-sm">Arquivo: {uploadedFile.name}</p>
-                        <p className="text-xs text-muted-foreground">Tamanho: {Math.round(uploadedFile.size / 1024)} KB</p>
-                      </div>
-                    )}
+                    <Button onClick={handleExcelDataPaste} data-testid="button-process-excel">
+                      <FileSpreadsheet className="w-4 h-4 mr-2" />
+                      Processar Dados do Excel
+                    </Button>
                   </TabsContent>
                 </Tabs>
                 
