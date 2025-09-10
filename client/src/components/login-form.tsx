@@ -13,6 +13,8 @@ interface LoginFormProps {
 
 export function LoginForm({ onLogin }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [registerData, setRegisterData] = useState({ 
     name: "", 
@@ -21,19 +23,41 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     confirmPassword: "" 
   });
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Login attempt:', loginData);
     
-    // TODO: Replace with real authentication
-    onLogin({
-      email: loginData.email || 'demo@empresa.com',
-      name: 'João Silva',
-      role: 'admin'
-    });
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          username: loginData.email,
+          password: loginData.password
+        }),
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        onLogin({
+          email: userData.email,
+          name: userData.name,
+          role: userData.role
+        });
+      } else {
+        const error = await response.text();
+        alert('Erro no login: ' + error);
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Erro de conexão. Tente novamente.');
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Register attempt:', registerData);
     
@@ -42,12 +66,36 @@ export function LoginForm({ onLogin }: LoginFormProps) {
       return;
     }
     
-    // TODO: Replace with real registration
-    onLogin({
-      email: registerData.email,
-      name: registerData.name,
-      role: 'user'
-    });
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          username: registerData.email,
+          email: registerData.email,
+          password: registerData.password,
+          name: registerData.name
+        }),
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        onLogin({
+          email: userData.email,
+          name: userData.name,
+          role: userData.role
+        });
+      } else {
+        const error = await response.text();
+        alert('Erro no registro: ' + error);
+      }
+    } catch (error) {
+      console.error('Register error:', error);
+      alert('Erro de conexão. Tente novamente.');
+    }
   };
 
   return (
@@ -167,14 +215,28 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
                       id="register-password"
-                      type="password"
+                      type={showRegisterPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="pl-10"
+                      className="pl-10 pr-10"
                       value={registerData.password}
                       onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
                       data-testid="input-register-password"
                       required
                     />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8"
+                      onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                      data-testid="button-toggle-register-password"
+                    >
+                      {showRegisterPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
                 
@@ -184,14 +246,28 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
                       id="confirm-password"
-                      type="password"
+                      type={showConfirmPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="pl-10"
+                      className="pl-10 pr-10"
                       value={registerData.confirmPassword}
                       onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
                       data-testid="input-confirm-password"
                       required
                     />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      data-testid="button-toggle-confirm-password"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
                 
