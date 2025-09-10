@@ -1,0 +1,299 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FileText, Upload, Download, Copy, FileSpreadsheet, Type, Loader2 } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
+
+// TODO: Replace with real data
+const mockTemplates = [
+  { id: '1', name: 'Certificado de Conclusão', variables: ['NOME', 'CURSO', 'DATA_CONCLUSAO', 'INSTRUTOR'] },
+  { id: '2', name: 'Contrato de Prestação de Serviços', variables: ['CONTRATANTE', 'CONTRATADO', 'VALOR', 'PRAZO'] },
+  { id: '3', name: 'Declaração de Participação', variables: ['PARTICIPANTE', 'EVENTO', 'LOCAL', 'DATA_EVENTO'] }
+];
+
+export default function GerarDocumentosPage() {
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [inputMethod, setInputMethod] = useState('manual');
+  const [manualData, setManualData] = useState<Record<string, string>>({});
+  const [csvData, setCsvData] = useState('');
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [batchData, setBatchData] = useState<Record<string, string>[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+
+  const selectedTemplateData = mockTemplates.find(t => t.id === selectedTemplate);
+
+  const handleManualDataChange = (variable: string, value: string) => {
+    setManualData(prev => ({ ...prev, [variable]: value }));
+  };
+
+  const handleCsvDataPaste = () => {
+    if (!csvData.trim() || !selectedTemplateData) return;
+    
+    console.log('Processing CSV data:', csvData);
+    
+    // Simple CSV parsing - first row is headers, subsequent rows are data
+    const lines = csvData.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.trim());
+    
+    const processedData = lines.slice(1).map(line => {
+      const values = line.split(',').map(v => v.trim());
+      const row: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index] || '';
+      });
+      return row;
+    });
+    
+    setBatchData(processedData);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadedFile(file);
+      console.log('File uploaded:', file.name);
+      // TODO: Process Excel/CSV file
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!selectedTemplateData) return;
+    
+    setIsGenerating(true);
+    setGenerationProgress(0);
+    
+    console.log('Starting document generation...');
+    
+    // Simulate generation progress
+    const interval = setInterval(() => {
+      setGenerationProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setIsGenerating(false);
+          return 100;
+        }
+        return prev + 20;
+      });
+    }, 500);
+    
+    // TODO: Implement actual document generation
+    if (inputMethod === 'manual') {
+      console.log('Generating single document with data:', manualData);
+    } else {
+      console.log('Generating batch documents with data:', batchData);
+    }
+  };
+
+  return (
+    <div className="p-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold mb-2">Gerar Documentos</h1>
+          <p className="text-muted-foreground">Crie documentos personalizados a partir dos seus modelos</p>
+        </div>
+
+        <div className="space-y-6">
+          {/* Template Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle>1. Selecionar Modelo</CardTitle>
+              <CardDescription>Escolha o modelo de documento que deseja utilizar</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                <SelectTrigger data-testid="select-template">
+                  <SelectValue placeholder="Selecione um modelo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {mockTemplates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        {template.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {selectedTemplateData && (
+                <div className="mt-4 p-3 bg-muted rounded-md">
+                  <p className="font-medium mb-2">Variáveis detectadas:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTemplateData.variables.map((variable) => (
+                      <Badge key={variable} variant="outline" className="font-mono">
+                        {`{{${variable}}}`}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Data Input Method */}
+          {selectedTemplateData && (
+            <Card>
+              <CardHeader>
+                <CardTitle>2. Método de Entrada de Dados</CardTitle>
+                <CardDescription>Escolha como fornecer os dados para as variáveis</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs value={inputMethod} onValueChange={setInputMethod}>
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="manual" data-testid="tab-manual">
+                      <Type className="w-4 h-4 mr-2" />
+                      Manual
+                    </TabsTrigger>
+                    <TabsTrigger value="csv" data-testid="tab-csv">
+                      <Copy className="w-4 h-4 mr-2" />
+                      CSV/Colar
+                    </TabsTrigger>
+                    <TabsTrigger value="upload" data-testid="tab-upload">
+                      <FileSpreadsheet className="w-4 h-4 mr-2" />
+                      Excel/CSV
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="manual" className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedTemplateData.variables.map((variable) => (
+                        <div key={variable}>
+                          <Label htmlFor={`var-${variable}`}>{variable}</Label>
+                          <Input
+                            id={`var-${variable}`}
+                            placeholder={`Digite ${variable.toLowerCase()}...`}
+                            value={manualData[variable] || ''}
+                            onChange={(e) => handleManualDataChange(variable, e.target.value)}
+                            data-testid={`input-${variable.toLowerCase()}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="csv" className="space-y-4">
+                    <div>
+                      <Label htmlFor="csv-data">Dados CSV</Label>
+                      <Textarea
+                        id="csv-data"
+                        placeholder={`Cole os dados no formato CSV:\n${selectedTemplateData.variables.join(', ')}\nJoão Silva, Curso React, 15/01/2024, Prof. Maria\nAna Costa, Curso Node.js, 16/01/2024, Prof. João`}
+                        rows={6}
+                        value={csvData}
+                        onChange={(e) => setCsvData(e.target.value)}
+                        data-testid="textarea-csv-data"
+                      />
+                    </div>
+                    <Button onClick={handleCsvDataPaste} data-testid="button-process-csv">
+                      <Copy className="w-4 h-4 mr-2" />
+                      Processar Dados CSV
+                    </Button>
+                  </TabsContent>
+                  
+                  <TabsContent value="upload" className="space-y-4">
+                    <div>
+                      <Label htmlFor="file-upload">Arquivo Excel/CSV</Label>
+                      <Input
+                        id="file-upload"
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={handleFileUpload}
+                        data-testid="input-file-upload"
+                      />
+                    </div>
+                    {uploadedFile && (
+                      <div className="p-3 bg-muted rounded-md">
+                        <p className="text-sm">Arquivo: {uploadedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">Tamanho: {Math.round(uploadedFile.size / 1024)} KB</p>
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+                
+                {/* Batch Data Preview */}
+                {batchData.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="font-medium mb-3">Prévia dos dados ({batchData.length} registros)</h4>
+                    <div className="border rounded-md">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            {selectedTemplateData.variables.map((variable) => (
+                              <TableHead key={variable}>{variable}</TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {batchData.slice(0, 5).map((row, index) => (
+                            <TableRow key={index}>
+                              {selectedTemplateData.variables.map((variable) => (
+                                <TableCell key={variable}>{row[variable] || '-'}</TableCell>
+                              ))}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      {batchData.length > 5 && (
+                        <div className="p-3 text-center text-sm text-muted-foreground border-t">
+                          E mais {batchData.length - 5} registros...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Generate Button */}
+          {selectedTemplateData && (inputMethod === 'manual' ? Object.keys(manualData).length > 0 : batchData.length > 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>3. Gerar Documentos</CardTitle>
+                <CardDescription>
+                  {inputMethod === 'manual' 
+                    ? 'Gerar um documento com os dados fornecidos' 
+                    : `Gerar ${batchData.length} documentos em lote`
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isGenerating && (
+                  <div className="space-y-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">Gerando documentos...</span>
+                    </div>
+                    <Progress value={generationProgress} className="w-full" />
+                  </div>
+                )}
+                
+                <Button 
+                  onClick={handleGenerate}
+                  disabled={isGenerating}
+                  size="lg"
+                  data-testid="button-generate-documents"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 mr-2" />
+                  )}
+                  {isGenerating ? 'Gerando...' : 'Gerar Documentos'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
