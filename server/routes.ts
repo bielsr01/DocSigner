@@ -14,19 +14,37 @@ import {
 } from "@shared/schema";
 import type { User } from "@shared/schema";
 
-// Middleware to get current user (placeholder for now)
-// In a real app, this would extract from session/JWT
-const getCurrentUser = (req: express.Request): User | null => {
-  // Mock user for development - replace with real session handling
-  return {
-    id: "mock-user-id",
-    username: "mock-user",
-    passwordHash: "hashed",
-    email: "mock@example.com",
-    name: "Mock User",
-    role: "user",
-    createdAt: new Date()
-  };
+// Extend Express Request to include session user
+declare module 'express-session' {
+  interface SessionData {
+    userId?: string;
+  }
+}
+
+// Middleware to get current user from session
+const getCurrentUser = async (req: express.Request): Promise<User | null> => {
+  if (!req.session.userId) {
+    return null;
+  }
+  
+  try {
+    return await storage.getUser(req.session.userId) || null;
+  } catch (error) {
+    console.error('Error getting user from session:', error);
+    return null;
+  }
+};
+
+// Authentication middleware
+const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const user = await getCurrentUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  // Attach user to request for convenience
+  (req as any).user = user;
+  next();
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -49,6 +67,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...userData,
         password: hashedPassword
       });
+      
+      // Create session for new user
+      req.session.userId = user.id;
       
       // Remove password from response
       const { passwordHash, ...userWithoutPassword } = user;
@@ -79,6 +100,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid credentials" });
       }
       
+      // Create session
+      req.session.userId = user.id;
+      
       // Remove password from response
       const { passwordHash, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
@@ -88,11 +112,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Templates routes
-  app.get("/api/templates", async (req, res) => {
+  app.post("/api/auth/logout", async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Session destroy error:', err);
+          return res.status(500).json({ error: 'Logout failed' });
+        }
+        res.clearCookie('connect.sid'); // Clear the session cookie
+        res.json({ message: 'Logged out successfully' });
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+      res.status(500).json({ error: 'Logout failed' });
+    }
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    try {
+      const user = await getCurrentUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+      
+      const { passwordHash, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error('Get user error:', error);
+      res.status(500).json({ error: 'Failed to get user' });
+    }
+  });
+
+  // Templates routes
+  app.get("/api/templates", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
       
       const templates = await storage.getTemplates(user.id);
       res.json(templates);
@@ -102,10 +156,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/templates", async (req, res) => {
+  app.post("/api/templates", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const templateData = insertTemplateSchema.parse(req.body);
       const template = await storage.createTemplate(templateData, user.id);
@@ -128,10 +181,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/templates/:id", async (req, res) => {
+  app.get("/api/templates/:id", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const template = await storage.getTemplate(req.params.id, user.id);
       if (!template) {
@@ -145,10 +197,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/templates/:id", async (req, res) => {
+  app.put("/api/templates/:id", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const templateData = insertTemplateSchema.partial().parse(req.body);
       const template = await storage.updateTemplate(req.params.id, templateData, user.id);
@@ -164,10 +215,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/templates/:id", async (req, res) => {
+  app.delete("/api/templates/:id", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const deleted = await storage.deleteTemplate(req.params.id, user.id);
       if (!deleted) {
@@ -182,10 +232,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Certificates routes
-  app.get("/api/certificates", async (req, res) => {
+  app.get("/api/certificates", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const certificates = await storage.getCertificates(user.id);
       res.json(certificates);
@@ -195,10 +244,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/certificates", async (req, res) => {
+  app.post("/api/certificates", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const certificateData = insertCertificateSchema.parse(req.body);
       const certificate = await storage.createCertificate(certificateData, user.id);
@@ -220,10 +268,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/certificates/:id", async (req, res) => {
+  app.delete("/api/certificates/:id", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const deleted = await storage.deleteCertificate(req.params.id, user.id);
       if (!deleted) {
@@ -238,10 +285,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Documents routes
-  app.get("/api/documents", async (req, res) => {
+  app.get("/api/documents", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const documents = await storage.getDocuments(user.id);
       res.json(documents);
@@ -251,10 +297,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/documents/generate", async (req, res) => {
+  app.post("/api/documents/generate", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const { templateId, data, batchData } = req.body;
       
@@ -339,10 +384,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Signatures routes
-  app.get("/api/signatures", async (req, res) => {
+  app.get("/api/signatures", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const signatures = await storage.getSignatures(user.id);
       res.json(signatures);
@@ -352,10 +396,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/signatures/:id/retry", async (req, res) => {
+  app.post("/api/signatures/:id/retry", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const signature = await storage.updateSignature(req.params.id, {
         status: "processing",
@@ -374,10 +417,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Activity log routes
-  app.get("/api/activity", async (req, res) => {
+  app.get("/api/activity", requireAuth, async (req, res) => {
     try {
-      const user = getCurrentUser(req);
-      if (!user) return res.status(401).json({ error: "Unauthorized" });
+      const user = (req as any).user;
       
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
       const activities = await storage.getActivityLog(user.id, limit);
