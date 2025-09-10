@@ -1,11 +1,15 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Note: Static file serving is disabled for security
+// Use authenticated download endpoints instead
 
 // Session configuration
 app.use(session({

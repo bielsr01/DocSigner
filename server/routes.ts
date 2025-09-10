@@ -3,6 +3,9 @@ import { createServer, type Server } from "http";
 import express from "express";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
+import { upload, getStorageRef } from "./upload";
+import fs from 'fs';
+import path from 'path';
 import { 
   insertUserSchema,
   insertTemplateSchema,
@@ -156,12 +159,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/templates", requireAuth, async (req, res) => {
+  app.post("/api/templates", requireAuth, upload.single('file'), async (req, res) => {
     try {
       const user = (req as any).user;
       
-      const templateData = insertTemplateSchema.parse(req.body);
-      const template = await storage.createTemplate(templateData, user.id);
+      if (!req.file) {
+        return res.status(400).json({ error: 'Template file is required' });
+      }
+      
+      // Parse template data from request body
+      const templateData = {
+        name: req.body.name,
+        description: req.body.description || '',
+        variables: JSON.parse(req.body.variables || '[]'),
+        storageRef: getStorageRef(req.file),
+        originalFilename: req.file.originalname,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype
+      };
+      
+      const validatedData = insertTemplateSchema.parse(templateData);
+      const template = await storage.createTemplate(validatedData, user.id);
       
       // Log activity
       await storage.createActivityLog({
@@ -201,7 +219,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = (req as any).user;
       
-      const templateData = insertTemplateSchema.partial().parse(req.body);
+      // Only allow updating safe fields, exclude server-managed fields
+      const allowedFields = { name: req.body.name, description: req.body.description, variables: req.body.variables };
+      const templateData = insertTemplateSchema.pick({ name: true, description: true, variables: true }).partial().parse(allowedFields);
       const template = await storage.updateTemplate(req.params.id, templateData, user.id);
       
       if (!template) {
@@ -231,6 +251,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Secure file download for templates
+  app.get("/api/templates/:id/download", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const template = await storage.getTemplate(req.params.id, user.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: 'Template not found' });
+      }
+      
+      // Validate and secure the file path
+      const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+      const requestedPath = path.resolve(process.cwd(), template.storageRef);
+      
+      // Ensure the path is within uploads directory (prevent path traversal)
+      const relativePath = path.relative(uploadsRoot, requestedPath);
+      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+        console.error('Path traversal attempt detected:', template.storageRef);
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Check if file exists
+      if (!fs.existsSync(requestedPath)) {
+        return res.status(404).json({ error: 'File not found on disk' });
+      }
+      
+      const filePath = requestedPath;
+      
+      // Sanitize filename for security
+      const safeFilename = (template.originalFilename || 'template').replace(/[^a-zA-Z0-9._-]/g, '_');
+      
+      // Set appropriate headers with security measures
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);  
+      res.setHeader('Content-Type', template.mimeType || 'application/octet-stream');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error('Template download error:', error);
+      res.status(500).json({ error: 'Failed to download template' });
+    }
+  });
+
   // Certificates routes
   app.get("/api/certificates", requireAuth, async (req, res) => {
     try {
@@ -244,12 +309,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/certificates", requireAuth, async (req, res) => {
+  app.post("/api/certificates", requireAuth, upload.single('file'), async (req, res) => {
     try {
       const user = (req as any).user;
       
-      const certificateData = insertCertificateSchema.parse(req.body);
-      const certificate = await storage.createCertificate(certificateData, user.id);
+      if (!req.file) {
+        return res.status(400).json({ error: 'Certificate file is required' });
+      }
+      
+      // Parse certificate data from request body
+      const certificateData = {
+        name: req.body.name,
+        description: req.body.description || '',
+        provider: req.body.provider,
+        validUntil: new Date(req.body.validUntil),
+        storageRef: getStorageRef(req.file),
+        originalFilename: req.file.originalname,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype
+      };
+      
+      const validatedData = insertCertificateSchema.parse(certificateData);
+      const certificate = await storage.createCertificate(validatedData, user.id);
       
       // Log activity
       await storage.createActivityLog({
@@ -281,6 +362,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Delete certificate error:", error);
       res.status(500).json({ error: "Failed to delete certificate" });
+    }
+  });
+
+  // Secure file download for certificates
+  app.get("/api/certificates/:id/download", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const certificate = await storage.getCertificate(req.params.id, user.id);
+      
+      if (!certificate) {
+        return res.status(404).json({ error: 'Certificate not found' });
+      }
+      
+      // Validate and secure the file path
+      const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+      const requestedPath = path.resolve(process.cwd(), certificate.storageRef);
+      
+      // Ensure the path is within uploads directory (prevent path traversal)
+      const relativePath = path.relative(uploadsRoot, requestedPath);
+      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+        console.error('Path traversal attempt detected:', certificate.storageRef);
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Check if file exists
+      if (!fs.existsSync(requestedPath)) {
+        return res.status(404).json({ error: 'File not found on disk' });
+      }
+      
+      const filePath = requestedPath;
+      
+      // Sanitize filename for security
+      const safeFilename = (certificate.originalFilename || 'certificate').replace(/[^a-zA-Z0-9._-]/g, '_');
+      
+      // Set appropriate headers with security measures
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);  
+      res.setHeader('Content-Type', certificate.mimeType || 'application/octet-stream');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error('Certificate download error:', error);
+      res.status(500).json({ error: 'Failed to download certificate' });
     }
   });
 
