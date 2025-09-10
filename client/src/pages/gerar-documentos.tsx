@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Upload, Download, Copy, FileSpreadsheet, Type, Loader2, Plus, Trash2, Edit } from "lucide-react";
+import { FileText, Upload, Download, Copy, FileSpreadsheet, Type, Loader2, Plus, Trash2, Edit, RefreshCw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 
@@ -28,6 +28,7 @@ export default function GerarDocumentosPage() {
   const [batchData, setBatchData] = useState<Record<string, string>[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const selectedTemplateData = mockTemplates.find(t => t.id === selectedTemplate);
 
@@ -158,11 +159,27 @@ export default function GerarDocumentosPage() {
     }, 500);
     
     // TODO: Implement actual document generation
+    // In a real implementation, this would start background processes
     if (inputMethod === 'manual') {
       console.log('Generating single document with data:', manualData);
     } else {
       console.log('Generating batch documents with data:', batchData);
     }
+  };
+
+  const handleRefreshStatus = async () => {
+    setIsRefreshing(true);
+    
+    console.log('Refreshing document generation status...');
+    
+    // TODO: Implement actual status refresh API call
+    // This would check the status of ongoing document generations
+    
+    // Simulate API call delay
+    setTimeout(() => {
+      setIsRefreshing(false);
+      console.log('Status refreshed');
+    }, 1000);
   };
 
   return (
@@ -432,19 +449,36 @@ export default function GerarDocumentosPage() {
                   </div>
                 )}
                 
-                <Button 
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
-                  size="lg"
-                  data-testid="button-generate-documents"
-                >
-                  {isGenerating ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4 mr-2" />
-                  )}
-                  {isGenerating ? 'Gerando...' : 'Gerar Documentos'}
-                </Button>
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={handleGenerate}
+                    disabled={isGenerating}
+                    size="lg"
+                    data-testid="button-generate-documents"
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 mr-2" />
+                    )}
+                    {isGenerating ? 'Gerando...' : 'Gerar Documentos'}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    onClick={handleRefreshStatus}
+                    disabled={isRefreshing}
+                    size="lg"
+                    data-testid="button-refresh-status"
+                  >
+                    {isRefreshing ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    {isRefreshing ? 'Atualizando...' : 'Atualizar Status'}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
