@@ -3,40 +3,58 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileSignature, Upload, Download, CheckCircle, Clock, AlertTriangle, Shield, Eye } from "lucide-react";
+import { FileSignature, CheckCircle, Clock, AlertTriangle, Shield, RefreshCw, Activity } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// TODO: Replace with real data
-const mockPendingDocuments = [
+// TODO: Replace with real data - documents with automatic signature status
+const mockSignatureHistory = [
   {
     id: '1',
-    name: 'Contrato_Empresa_ABC.pdf',
-    template: 'Contrato de Prestação',
+    name: 'Lote_Certificados_001.zip',
+    documentsCount: 25,
+    template: 'Certificado de Conclusão',
     createdAt: '2024-01-15T14:30:00',
-    size: '567 KB',
-    status: 'pending_signature',
-    priority: 'high'
+    signedAt: '2024-01-15T14:32:15',
+    status: 'signed',
+    certificate: 'Certificado Empresa LTDA (A3)',
+    processingTime: '2min 15s'
   },
   {
     id: '2',
-    name: 'Declaracao_Pedro_Costa.pdf',
-    template: 'Declaração de Participação',
+    name: 'Contrato_Empresa_ABC.pdf',
+    documentsCount: 1,
+    template: 'Contrato de Prestação',
     createdAt: '2024-01-15T13:15:00',
-    size: '198 KB',
-    status: 'pending_signature',
-    priority: 'medium'
+    signedAt: '2024-01-15T13:15:45',
+    status: 'signed',
+    certificate: 'Certificado Empresa LTDA (A3)',
+    processingTime: '45s'
   },
   {
     id: '3',
-    name: 'Certificado_Ana_Lima.pdf',
-    template: 'Certificado de Conclusão',
+    name: 'Lote_Declaracoes_002.zip',
+    documentsCount: 8,
+    template: 'Declaração de Participação',
     createdAt: '2024-01-15T12:00:00',
-    size: '251 KB',
+    signedAt: null,
     status: 'signing',
-    priority: 'low'
+    certificate: 'Certificado Empresa LTDA (A3)',
+    processingTime: null
+  },
+  {
+    id: '4',
+    name: 'Contrato_Teste.pdf',
+    documentsCount: 1,
+    template: 'Contrato de Prestação',
+    createdAt: '2024-01-15T11:30:00',
+    signedAt: null,
+    status: 'error',
+    certificate: 'Certificado Empresa LTDA (A3)',
+    processingTime: null,
+    error: 'Certificado expirado'
   }
 ];
 
@@ -58,82 +76,46 @@ const mockCertificates = [
 ];
 
 export default function AssinarDocumentosPage() {
-  const [documents, setDocuments] = useState(mockPendingDocuments);
-  const [selectedCertificate, setSelectedCertificate] = useState('');
-  const [signingDocuments, setSigningDocuments] = useState<string[]>([]);
-  const [signatureProgress, setSignatureProgress] = useState<Record<string, number>>({});
-  const [activeTab, setActiveTab] = useState('pending');
+  const [signatureHistory, setSignatureHistory] = useState(mockSignatureHistory);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState('processing');
+  const [autoSignEnabled, setAutoSignEnabled] = useState(true);
 
   const validCertificates = mockCertificates.filter(cert => cert.status === 'valid');
-  const pendingDocuments = documents.filter(doc => doc.status === 'pending_signature');
-  const processingDocuments = documents.filter(doc => doc.status === 'signing');
+  const processingDocuments = signatureHistory.filter(doc => doc.status === 'signing');
+  const completedDocuments = signatureHistory.filter(doc => doc.status === 'signed');
+  const errorDocuments = signatureHistory.filter(doc => doc.status === 'error');
 
-  const handleSignDocument = async (documentId: string) => {
-    if (!selectedCertificate) {
-      alert('Por favor, selecione um certificado para assinatura');
-      return;
-    }
-
-    console.log('Signing document:', documentId, 'with certificate:', selectedCertificate);
-    
-    setSigningDocuments(prev => [...prev, documentId]);
-    setSignatureProgress(prev => ({ ...prev, [documentId]: 0 }));
-    
-    // Simulate signing progress
-    const interval = setInterval(() => {
-      setSignatureProgress(prev => {
-        const currentProgress = prev[documentId] || 0;
-        const newProgress = currentProgress + 25;
-        
-        if (newProgress >= 100) {
-          clearInterval(interval);
-          setSigningDocuments(current => current.filter(id => id !== documentId));
-          setDocuments(current => 
-            current.map(doc => 
-              doc.id === documentId 
-                ? { ...doc, status: 'signed' as const }
-                : doc
-            )
-          );
-          return { ...prev, [documentId]: 100 };
-        }
-        
-        return { ...prev, [documentId]: newProgress };
-      });
-    }, 800);
-    
-    // TODO: Implement actual signing with FPDI/TCPDF
+  const handleRefreshStatus = () => {
+    setIsRefreshing(true);
+    console.log('Refreshing signature status...');
+    // TODO: Implement actual status refresh from server
+    setTimeout(() => setIsRefreshing(false), 1000);
   };
 
-  const handleBatchSign = async () => {
-    if (!selectedCertificate) {
-      alert('Por favor, selecione um certificado para assinatura');
-      return;
-    }
-    
-    console.log('Batch signing documents with certificate:', selectedCertificate);
-    
-    for (const doc of pendingDocuments) {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
-      handleSignDocument(doc.id);
-    }
+  const handleToggleAutoSign = () => {
+    setAutoSignEnabled(!autoSignEnabled);
+    console.log('Auto-sign', !autoSignEnabled ? 'enabled' : 'disabled');
+    // TODO: Send auto-sign preference to server
   };
 
-  const handlePreviewDocument = (documentId: string) => {
-    console.log('Previewing document:', documentId);
-    // TODO: Implement document preview
+  const handleRetrySignature = (documentId: string) => {
+    console.log('Retrying signature for document:', documentId);
+    // TODO: Implement retry signature functionality
+    setSignatureHistory(prev => 
+      prev.map(doc => 
+        doc.id === documentId 
+          ? { ...doc, status: 'signing' as const }
+          : doc
+      )
+    );
   };
 
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return <Badge variant="destructive">Alta</Badge>;
-      case 'medium':
-        return <Badge variant="secondary">Média</Badge>;
-      case 'low':
-        return <Badge variant="outline">Baixa</Badge>;
-      default:
-        return <Badge variant="outline">{priority}</Badge>;
+  const getDocumentCountBadge = (count: number) => {
+    if (count === 1) {
+      return <Badge variant="outline">Individual</Badge>;
+    } else {
+      return <Badge variant="secondary">Lote ({count})</Badge>;
     }
   };
 
@@ -177,33 +159,6 @@ export default function AssinarDocumentosPage() {
             <CardContent>
               {validCertificates.length > 0 ? (
                 <div className="space-y-4">
-                  <Select value={selectedCertificate} onValueChange={setSelectedCertificate}>
-                    <SelectTrigger data-testid="select-certificate">
-                      <SelectValue placeholder="Selecione um certificado..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {validCertificates.map((cert) => (
-                        <SelectItem key={cert.id} value={cert.id}>
-                          <div className="flex items-center gap-2">
-                            <Shield className="w-4 h-4" />
-                            <span>{cert.name}</span>
-                            <Badge variant="outline">{cert.type}</Badge>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  {selectedCertificate && (
-                    <div className="p-3 bg-muted rounded-md">
-                      <p className="text-sm">
-                        <strong>Certificado selecionado:</strong> {validCertificates.find(c => c.id === selectedCertificate)?.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Válido até: {validCertificates.find(c => c.id === selectedCertificate)?.validTo}
-                      </p>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <Alert>
@@ -216,55 +171,44 @@ export default function AssinarDocumentosPage() {
             </CardContent>
           </Card>
 
-          {/* Documents to Sign */}
+          {/* Signature Monitoring */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
-              <TabsTrigger value="pending" data-testid="tab-pending-signatures">
-                Pendentes ({pendingDocuments.length})
-              </TabsTrigger>
               <TabsTrigger value="processing" data-testid="tab-processing-signatures">
                 Processando ({processingDocuments.length})
               </TabsTrigger>
+              <TabsTrigger value="completed" data-testid="tab-completed-signatures">
+                Concluídas ({completedDocuments.length})
+              </TabsTrigger>
+              <TabsTrigger value="errors" data-testid="tab-error-signatures">
+                Erros ({errorDocuments.length})
+              </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="pending" className="space-y-4">
+            <TabsContent value="processing" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <CardTitle>Documentos Pendentes</CardTitle>
-                      <CardDescription>
-                        Documentos aguardando assinatura digital
-                      </CardDescription>
-                    </div>
-                    
-                    {pendingDocuments.length > 0 && selectedCertificate && (
-                      <Button 
-                        onClick={handleBatchSign}
-                        data-testid="button-batch-sign"
-                      >
-                        <FileSignature className="w-4 h-4 mr-2" />
-                        Assinar Todos ({pendingDocuments.length})
-                      </Button>
-                    )}
-                  </div>
+                  <CardTitle>Documentos em Processamento</CardTitle>
+                  <CardDescription>
+                    Documentos sendo assinados automaticamente
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {pendingDocuments.length > 0 ? (
+                  {processingDocuments.length > 0 ? (
                     <div className="border rounded-md">
                       <Table>
                         <TableHeader>
                           <TableRow>
                             <TableHead>Documento</TableHead>
                             <TableHead>Template</TableHead>
-                            <TableHead>Criado em</TableHead>
-                            <TableHead>Tamanho</TableHead>
-                            <TableHead>Prioridade</TableHead>
-                            <TableHead>Ações</TableHead>
+                            <TableHead>Tipo</TableHead>
+                            <TableHead>Certificado</TableHead>
+                            <TableHead>Iniciado em</TableHead>
+                            <TableHead>Status</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {pendingDocuments.map((document) => (
+                          {processingDocuments.map((document) => (
                             <TableRow key={document.id}>
                               <TableCell>
                                 <div className="flex items-center gap-2">
@@ -273,28 +217,13 @@ export default function AssinarDocumentosPage() {
                                 </div>
                               </TableCell>
                               <TableCell>{document.template}</TableCell>
+                              <TableCell>{getDocumentCountBadge(document.documentsCount)}</TableCell>
+                              <TableCell className="text-sm">{document.certificate}</TableCell>
                               <TableCell>{formatDate(document.createdAt)}</TableCell>
-                              <TableCell>{document.size}</TableCell>
-                              <TableCell>{getPriorityBadge(document.priority)}</TableCell>
                               <TableCell>
-                                <div className="flex gap-2">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => handlePreviewDocument(document.id)}
-                                    data-testid={`button-preview-${document.id}`}
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                  </Button>
-                                  <Button 
-                                    size="sm"
-                                    onClick={() => handleSignDocument(document.id)}
-                                    disabled={!selectedCertificate || signingDocuments.includes(document.id)}
-                                    data-testid={`button-sign-${document.id}`}
-                                  >
-                                    <FileSignature className="w-4 h-4 mr-2" />
-                                    Assinar
-                                  </Button>
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-4 h-4 text-blue-500 animate-pulse" />
+                                  <span className="text-sm">Assinando...</span>
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -305,9 +234,9 @@ export default function AssinarDocumentosPage() {
                   ) : (
                     <div className="text-center py-12">
                       <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Todos os documentos foram assinados</h3>
+                      <h3 className="text-lg font-semibold mb-2">Nenhuma assinatura em processamento</h3>
                       <p className="text-muted-foreground">
-                        Não há documentos pendentes de assinatura no momento
+                        Documentos são assinados automaticamente após a geração
                       </p>
                     </div>
                   )}
@@ -315,46 +244,123 @@ export default function AssinarDocumentosPage() {
               </Card>
             </TabsContent>
             
-            <TabsContent value="processing" className="space-y-4">
+            <TabsContent value="completed" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Documentos em Processamento</CardTitle>
+                  <CardTitle>Assinaturas Concluídas</CardTitle>
                   <CardDescription>
-                    Documentos sendo assinados digitalmente
+                    Documentos assinados automaticamente com sucesso
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {signingDocuments.length > 0 || processingDocuments.length > 0 ? (
-                    <div className="space-y-4">
-                      {signingDocuments.map((docId) => {
-                        const document = documents.find(d => d.id === docId);
-                        if (!document) return null;
-                        
-                        return (
-                          <div key={docId} className="p-4 border rounded-lg">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-3">
-                                <FileSignature className="w-5 h-5 text-blue-500 animate-pulse" />
-                                <div>
-                                  <p className="font-medium">{document.name}</p>
-                                  <p className="text-sm text-muted-foreground">Assinando documento...</p>
+                  {completedDocuments.length > 0 ? (
+                    <div className="border rounded-md">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Documento</TableHead>
+                            <TableHead>Template</TableHead>
+                            <TableHead>Tipo</TableHead>
+                            <TableHead>Certificado</TableHead>
+                            <TableHead>Assinado em</TableHead>
+                            <TableHead>Tempo</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {completedDocuments.map((document) => (
+                            <TableRow key={document.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {getStatusIcon(document.status)}
+                                  <span className="font-medium">{document.name}</span>
                                 </div>
-                              </div>
-                              <span className="text-sm font-medium">
-                                {signatureProgress[docId] || 0}%
-                              </span>
-                            </div>
-                            <Progress value={signatureProgress[docId] || 0} className="w-full" />
-                          </div>
-                        );
-                      })}
+                              </TableCell>
+                              <TableCell>{document.template}</TableCell>
+                              <TableCell>{getDocumentCountBadge(document.documentsCount)}</TableCell>
+                              <TableCell className="text-sm">{document.certificate}</TableCell>
+                              <TableCell>{formatDate(document.signedAt!)}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-green-600">
+                                  {document.processingTime}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
                   ) : (
                     <div className="text-center py-12">
-                      <Clock className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Nenhum documento em processamento</h3>
+                      <FileSignature className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Nenhuma assinatura concluída</h3>
                       <p className="text-muted-foreground">
-                        Os documentos em processo de assinatura aparecerão aqui
+                        Documentos assinados aparecerão aqui
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="errors" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Erros de Assinatura</CardTitle>
+                  <CardDescription>
+                    Documentos que falharam na assinatura automática
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {errorDocuments.length > 0 ? (
+                    <div className="border rounded-md">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Documento</TableHead>
+                            <TableHead>Template</TableHead>
+                            <TableHead>Tipo</TableHead>
+                            <TableHead>Erro</TableHead>
+                            <TableHead>Tentativa em</TableHead>
+                            <TableHead>Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {errorDocuments.map((document) => (
+                            <TableRow key={document.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {getStatusIcon(document.status)}
+                                  <span className="font-medium">{document.name}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>{document.template}</TableCell>
+                              <TableCell>{getDocumentCountBadge(document.documentsCount)}</TableCell>
+                              <TableCell>
+                                <span className="text-sm text-red-600">{document.error}</span>
+                              </TableCell>
+                              <TableCell>{formatDate(document.createdAt)}</TableCell>
+                              <TableCell>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleRetrySignature(document.id)}
+                                  data-testid={`button-retry-${document.id}`}
+                                >
+                                  <RefreshCw className="w-4 h-4 mr-2" />
+                                  Tentar Novamente
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Nenhum erro de assinatura</h3>
+                      <p className="text-muted-foreground">
+                        Todas as assinaturas foram processadas com sucesso
                       </p>
                     </div>
                   )}
