@@ -159,6 +159,26 @@ export default function AssinarDocumentosPage() {
             <CardContent>
               {validCertificates.length > 0 ? (
                 <div className="space-y-4">
+                  <Select>
+                    <SelectTrigger data-testid="select-signing-certificate">
+                      <SelectValue placeholder="Selecione um certificado para assinatura..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {validCertificates.map((cert) => (
+                        <SelectItem key={cert.id} value={cert.id}>
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-4 h-4" />
+                            <div className="flex flex-col">
+                              <span>{cert.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {cert.type} • Válido até: {new Date(cert.validTo).toLocaleDateString('pt-BR')}
+                              </span>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               ) : (
                 <Alert>
@@ -168,6 +188,62 @@ export default function AssinarDocumentosPage() {
                   </AlertDescription>
                 </Alert>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Document Upload Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileSignature className="w-5 h-5" />
+                Adicionar Documentos para Assinatura
+              </CardTitle>
+              <CardDescription>
+                Envie documentos que precisam ser assinados digitalmente
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
+                  <div className="text-center">
+                    <FileSignature className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Arraste documentos aqui</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Ou clique para selecionar arquivos PDF
+                    </p>
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf"
+                      className="hidden"
+                      id="document-upload"
+                      data-testid="input-document-upload"
+                    />
+                    <label htmlFor="document-upload">
+                      <Button variant="outline" asChild>
+                        <span>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Selecionar Arquivos
+                        </span>
+                      </Button>
+                    </label>
+                  </div>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <p className="text-sm text-muted-foreground">
+                    Formatos aceitos: PDF • Tamanho máximo: 10MB por arquivo
+                  </p>
+                  <Button 
+                    variant="default"
+                    disabled={true}
+                    data-testid="button-start-signing"
+                  >
+                    <FileSignature className="w-4 h-4 mr-2" />
+                    Iniciar Assinatura
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -261,9 +337,9 @@ export default function AssinarDocumentosPage() {
                             <TableHead>Documento</TableHead>
                             <TableHead>Template</TableHead>
                             <TableHead>Tipo</TableHead>
-                            <TableHead>Certificado</TableHead>
                             <TableHead>Assinado em</TableHead>
                             <TableHead>Tempo</TableHead>
+                            <TableHead>Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -277,12 +353,22 @@ export default function AssinarDocumentosPage() {
                               </TableCell>
                               <TableCell>{document.template}</TableCell>
                               <TableCell>{getDocumentCountBadge(document.documentsCount)}</TableCell>
-                              <TableCell className="text-sm">{document.certificate}</TableCell>
                               <TableCell>{formatDate(document.signedAt!)}</TableCell>
                               <TableCell>
                                 <Badge variant="outline" className="text-green-600">
                                   {document.processingTime}
                                 </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => window.open(`/api/documents/${document.id}/download`, '_blank')}
+                                  data-testid={`button-download-${document.id}`}
+                                >
+                                  <Download className="w-3 h-3 mr-1" />
+                                  Download
+                                </Button>
                               </TableCell>
                             </TableRow>
                           ))}

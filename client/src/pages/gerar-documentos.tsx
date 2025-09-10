@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,12 @@ const mockTemplates = [
   { id: '3', name: 'Declaração de Participação', variables: ['PARTICIPANTE', 'EVENTO', 'LOCAL', 'DATA_EVENTO'] }
 ];
 
+// TODO: Replace with real data from API
+const mockCertificates = [
+  { id: '1', name: 'Certificado Empresa LTDA (A3)', status: 'valid', validTo: '2025-01-01' },
+  { id: '2', name: 'Certificado Pessoal (A1)', status: 'valid', validTo: '2024-12-15' }
+];
+
 export default function GerarDocumentosPage() {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [inputMethod, setInputMethod] = useState('manual');
@@ -29,8 +35,37 @@ export default function GerarDocumentosPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Configuration states
+  const [batchName, setBatchName] = useState('');
+  const [documentNameType, setDocumentNameType] = useState<'custom' | 'variable'>('custom');
+  const [documentName, setDocumentName] = useState('');
+  const [selectedCertificate, setSelectedCertificate] = useState('');
+  
+  // Document history states
+  const [generatedDocuments, setGeneratedDocuments] = useState<Array<{
+    id: string;
+    batchName: string;
+    documentName: string;
+    templateName: string;
+    certificateName: string;
+    documentsCount: number;
+    status: 'generating' | 'generated' | 'signing' | 'signed' | 'error';
+    createdAt: Date;
+    completedAt?: Date;
+    downloadUrl?: string;
+    error?: string;
+  }>>([]);
 
   const selectedTemplateData = mockTemplates.find(t => t.id === selectedTemplate);
+  const validCertificates = mockCertificates.filter(cert => cert.status === 'valid');
+
+  // Auto-select certificate if only one is available
+  useEffect(() => {
+    if (validCertificates.length === 1 && !selectedCertificate) {
+      setSelectedCertificate(validCertificates[0].id);
+    }
+  }, [validCertificates, selectedCertificate]);
 
   // Clear data when template changes
   const handleTemplateChange = (templateId: string) => {
@@ -116,7 +151,10 @@ export default function GerarDocumentosPage() {
   };
 
   const handleGenerate = async () => {
-    if (!selectedTemplateData) return;
+    if (!selectedTemplateData || !selectedCertificate) {
+      alert('Por favor, selecione um modelo e um certificado antes de gerar os documentos.');
+      return;
+    }
     
     setIsGenerating(true);
     setGenerationProgress(0);
@@ -137,34 +175,80 @@ export default function GerarDocumentosPage() {
     
     console.log('Data to process:', dataToProcess);
     
-    // Simulate generation progress
+    // Generate document ID and get certificate name
+    const documentId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const selectedCert = validCertificates.find(c => c.id === selectedCertificate);
+    const finalBatchName = batchName || `Lote_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '_')}`;
+    const finalDocumentName = documentName || 'Documento';
+    
+    // Create document entry
+    const newDocument = {
+      id: documentId,
+      batchName: finalBatchName,
+      documentName: finalDocumentName,
+      templateName: selectedTemplateData.name,
+      certificateName: selectedCert?.name || 'Certificado não encontrado',
+      documentsCount: dataToProcess.length,
+      status: 'generating' as const,
+      createdAt: new Date(),
+    };
+    
+    // Add to history
+    setGeneratedDocuments(prev => [newDocument, ...prev]);
+    
+    // Simulate generation progress with realistic workflow
     const interval = setInterval(() => {
       setGenerationProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
           setIsGenerating(false);
-          // Clear data after generation
-          if (inputMethod === 'manual') {
-            setManualData({});
-            setManualBatchData([]);
-          } else {
-            setBatchData([]);
-            setCsvData('');
-            setExcelData('');
-          }
+          
+          // Update document status to "generated" and then simulate signing process
+          setGeneratedDocuments(prevDocs => 
+            prevDocs.map(doc => 
+              doc.id === documentId 
+                ? { ...doc, status: 'generated' as const }
+                : doc
+            )
+          );
+          
+          // Start automatic signing process after 1 second
+          setTimeout(() => {
+            setGeneratedDocuments(prevDocs => 
+              prevDocs.map(doc => 
+                doc.id === documentId 
+                  ? { ...doc, status: 'signing' as const }
+                  : doc
+              )
+            );
+            
+            // Complete signing after 3 seconds
+            setTimeout(() => {
+              setGeneratedDocuments(prevDocs => 
+                prevDocs.map(doc => 
+                  doc.id === documentId 
+                    ? { 
+                        ...doc, 
+                        status: 'signed' as const, 
+                        completedAt: new Date(),
+                        downloadUrl: `/api/documents/${documentId}/download`
+                      }
+                    : doc
+                )
+              );
+            }, 3000);
+          }, 1000);
+          
+          // DON'T clear data after generation - keep it for user to see
+          console.log('Document generation completed for:', documentId);
           return 100;
         }
         return prev + 20;
       });
     }, 500);
     
-    // TODO: Implement actual document generation
-    // In a real implementation, this would start background processes
-    if (inputMethod === 'manual') {
-      console.log('Generating single document with data:', manualData);
-    } else {
-      console.log('Generating batch documents with data:', batchData);
-    }
+    // TODO: Implement actual document generation API call
+    // This should call the backend to start the real generation process
   };
 
   const handleRefreshStatus = async () => {
@@ -191,10 +275,90 @@ export default function GerarDocumentosPage() {
         </div>
 
         <div className="space-y-6">
+          {/* Configuration */}
+          <Card>
+            <CardHeader>
+              <CardTitle>1. Configurações</CardTitle>
+              <CardDescription>Configure as opções de geração e assinatura</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="batch-name">Nome do Lote</Label>
+                  <Input
+                    id="batch-name"
+                    placeholder="Ex: Certificados_Turma_2024"
+                    value={batchName}
+                    onChange={(e) => setBatchName(e.target.value)}
+                    data-testid="input-batch-name"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="certificate">Certificado para Assinatura</Label>
+                  <Select value={selectedCertificate} onValueChange={setSelectedCertificate}>
+                    <SelectTrigger data-testid="select-certificate">
+                      <SelectValue placeholder="Selecione um certificado..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {validCertificates.map((cert) => (
+                        <SelectItem key={cert.id} value={cert.id}>
+                          <div className="flex items-center gap-2">
+                            <FileSignature className="w-4 h-4" />
+                            <div className="flex flex-col">
+                              <span>{cert.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                Válido até: {new Date(cert.validTo).toLocaleDateString('pt-BR')}
+                              </span>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {validCertificates.length === 1 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Certificado selecionado automaticamente
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="document-name">Nome do Documento Final</Label>
+                <div className="flex gap-2 mt-1">
+                  <Select value={documentNameType} onValueChange={(value) => setDocumentNameType(value as 'custom' | 'variable')}>
+                    <SelectTrigger className="w-32" data-testid="select-document-name-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">Fixo</SelectItem>
+                      <SelectItem value="variable">Variável</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    id="document-name"
+                    placeholder={documentNameType === 'custom' ? 'Ex: Certificado' : 'Ex: {{NOME}}_certificado'}
+                    value={documentName}
+                    onChange={(e) => setDocumentName(e.target.value)}
+                    className="flex-1"
+                    data-testid="input-document-name"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {documentNameType === 'custom' 
+                    ? 'Nome fixo para todos os documentos' 
+                    : 'Use {{VARIAVEL}} para incluir dados do documento'
+                  }
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Template Selection */}
           <Card>
             <CardHeader>
-              <CardTitle>1. Selecionar Modelo</CardTitle>
+              <CardTitle>2. Selecionar Modelo</CardTitle>
               <CardDescription>Escolha o modelo de documento que deseja utilizar</CardDescription>
             </CardHeader>
             <CardContent>
@@ -233,7 +397,7 @@ export default function GerarDocumentosPage() {
           {selectedTemplateData && (
             <Card>
               <CardHeader>
-                <CardTitle>2. Método de Entrada de Dados</CardTitle>
+                <CardTitle>3. Método de Entrada de Dados</CardTitle>
                 <CardDescription>Escolha como fornecer os dados para as variáveis</CardDescription>
               </CardHeader>
               <CardContent>
@@ -427,7 +591,7 @@ export default function GerarDocumentosPage() {
           {selectedTemplateData && (inputMethod === 'manual' ? (manualBatchData.length > 0 || (Object.keys(manualData).length > 0 && selectedTemplateData.variables.every(v => manualData[v]?.trim()))) : batchData.length > 0) && (
             <Card>
               <CardHeader>
-                <CardTitle>3. Gerar Documentos</CardTitle>
+                <CardTitle>4. Gerar Documentos</CardTitle>
                 <CardDescription>
                   {inputMethod === 'manual' 
                     ? (manualBatchData.length > 0 
@@ -478,6 +642,115 @@ export default function GerarDocumentosPage() {
                     )}
                     {isRefreshing ? 'Atualizando...' : 'Atualizar Status'}
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Generated Documents History */}
+          {generatedDocuments.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Histórico de Documentos</CardTitle>
+                    <CardDescription>
+                      Acompanhe o status dos documentos gerados ({generatedDocuments.length} total)
+                    </CardDescription>
+                  </div>
+                  <Button 
+                    variant="outline"
+                    onClick={handleRefreshStatus}
+                    disabled={isRefreshing}
+                    data-testid="button-refresh-history"
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    Atualizar
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {generatedDocuments.map((doc) => (
+                    <div key={doc.id} className="border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h4 className="font-medium">{doc.batchName}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {doc.documentsCount === 1 ? '1 documento' : `${doc.documentsCount} documentos`} • {doc.templateName}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Criado em: {doc.createdAt.toLocaleString('pt-BR')}
+                            {doc.completedAt && ` • Concluído em: ${doc.completedAt.toLocaleString('pt-BR')}`}
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          {doc.status === 'generating' && (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              Gerando
+                            </Badge>
+                          )}
+                          {doc.status === 'generated' && (
+                            <Badge variant="outline" className="bg-orange-50 text-orange-700">
+                              <FileText className="w-3 h-3 mr-1" />
+                              Gerado
+                            </Badge>
+                          )}
+                          {doc.status === 'signing' && (
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                              <FileSignature className="w-3 h-3 mr-1 animate-pulse" />
+                              Assinando
+                            </Badge>
+                          )}
+                          {doc.status === 'signed' && (
+                            <Badge variant="outline" className="bg-green-50 text-green-700">
+                              <FileSignature className="w-3 h-3 mr-1" />
+                              Assinado
+                            </Badge>
+                          )}
+                          {doc.status === 'error' && (
+                            <Badge variant="destructive">
+                              <AlertTriangle className="w-3 h-3 mr-1" />
+                              Erro
+                            </Badge>
+                          )}
+                          
+                          {doc.status === 'signed' && doc.downloadUrl && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => window.open(doc.downloadUrl, '_blank')}
+                              data-testid={`button-download-${doc.id}`}
+                            >
+                              <Download className="w-3 h-3 mr-1" />
+                              Download
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="text-sm">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <span className="text-muted-foreground">Documento:</span>
+                            <span className="ml-2">{doc.documentName}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Certificado:</span>
+                            <span className="ml-2">{doc.certificateName}</span>
+                          </div>
+                        </div>
+                        
+                        {doc.error && (
+                          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-xs">
+                            <strong>Erro:</strong> {doc.error}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
