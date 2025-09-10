@@ -8,6 +8,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LoginForm } from "@/components/login-form";
+import DashboardPage from "@/pages/dashboard";
 import ModelosPage from "@/pages/modelos";
 import GerarDocumentosPage from "@/pages/gerar-documentos";
 import AssinarDocumentosPage from "@/pages/assinar-documentos";
@@ -25,7 +26,7 @@ interface User {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={() => <ModelosPage />} />
+      <Route path="/" component={() => <DashboardPage />} />
       <Route path="/modelos" component={() => <ModelosPage />} />
       <Route path="/gerar" component={() => <GerarDocumentosPage />} />
       <Route path="/assinar" component={() => <AssinarDocumentosPage />} />

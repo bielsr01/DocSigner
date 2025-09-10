@@ -1,4 +1,4 @@
-import { FileText, PenTool, FileSignature, Shield, History, Download, Settings, LogOut, User } from "lucide-react";
+import { Home, FileText, PenTool, FileSignature, Shield, History, Download, Settings, LogOut, User } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -17,6 +17,12 @@ import { Badge } from "@/components/ui/badge";
 import logoUrl from "@assets/generated_images/Professional_document_management_logo_8435641d.png";
 
 const menuItems = [
+  {
+    title: "Dashboard",
+    url: "/",
+    icon: Home,
+    description: "Visão geral do sistema"
+  },
   {
     title: "Modelos",
     url: "/modelos",
