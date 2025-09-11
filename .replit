@@ -4,7 +4,7 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["libreoffice", "docker"]
+packages = ["libreoffice", "docker", "php82", "php82Packages.composer"]
 
 [deployment]
 deploymentTarget = "autoscale"

@@ -1,0 +1,7 @@
+{
+    "name": "docusign/pdf-signer",
+    "description": "PDF Digital Signature Service",
+    "require": {
+        "setasign/fpdi-tcpdf": "^2.3"
+    }
+}
