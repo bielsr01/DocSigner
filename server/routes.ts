@@ -811,7 +811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Temporary file serving for OnlyOffice Document Server access
   // This route serves DOCX files temporarily so OnlyOffice can download them for conversion
-  app.use('/uploads/temp', express.static(path.join(path.dirname(__filename), '..', 'uploads', 'temp'), {
+  app.use('/uploads/temp', express.static(path.join(process.cwd(), 'uploads', 'temp'), {
     maxAge: '5m', // Files expire after 5 minutes
     setHeaders: (res, filePath) => {
       // Allow CORS for OnlyOffice server access
@@ -838,7 +838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'Admin access required' });
       }
 
-      const tempDir = path.join(path.dirname(__filename), '..', 'uploads', 'temp');
+      const tempDir = path.join(process.cwd(), 'uploads', 'temp');
       
       if (!fs.existsSync(tempDir)) {
         return res.json({ message: 'Temp directory does not exist', filesDeleted: 0 });
