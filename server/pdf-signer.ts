@@ -3,7 +3,7 @@ import path from 'path';
 import signpdf from '@signpdf/signpdf';
 import { plainAddPlaceholder } from '@signpdf/placeholder-plain';
 import { P12Signer } from '@signpdf/signer-p12';
-import * as forge from 'node-forge';
+const forge = require('node-forge');
 
 export interface SignatureOptions {
   certificatePath: string;
@@ -194,7 +194,8 @@ export class PDFSigner {
       const certificateBuffer = fs.readFileSync(certificatePath);
       
       // Use node-forge to extract real certificate information
-      const p12Asn1 = forge.asn1.fromDer(forge.util.encode64(certificateBuffer.toString('binary')));
+      const p12Der = certificateBuffer.toString('binary');
+      const p12Asn1 = forge.asn1.fromDer(p12Der);
       const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, password);
       
       // Get the certificate from the p12
