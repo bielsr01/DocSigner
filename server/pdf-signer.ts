@@ -3,7 +3,7 @@ import path from 'path';
 import signpdf from '@signpdf/signpdf';
 import { plainAddPlaceholder } from '@signpdf/placeholder-plain';
 import { P12Signer } from '@signpdf/signer-p12';
-const forge = require('node-forge');
+import forge from 'node-forge';
 
 export interface SignatureOptions {
   certificatePath: string;

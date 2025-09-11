@@ -4,55 +4,54 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { FileText, Upload, FileSignature, Download, TrendingUp, Clock, CheckCircle, AlertTriangle, Plus, RefreshCw } from "lucide-react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
-// TODO: Replace with real data from API
-const mockStats = {
-  totalDocuments: 1247,
-  documentsThisMonth: 156,
-  templatesCount: 8,
-  certificatesCount: 3,
-  pendingSignatures: 12,
-  recentActivity: [
-    {
-      id: '1',
-      type: 'document_generated',
-      description: 'Lote de 25 certificados gerado',
-      timestamp: '2024-01-15T14:30:00',
-      status: 'success'
-    },
-    {
-      id: '2', 
-      type: 'template_uploaded',
-      description: 'Novo modelo "Contrato Prestação" adicionado',
-      timestamp: '2024-01-15T13:15:00',
-      status: 'success'
-    },
-    {
-      id: '3',
-      type: 'document_signed',
-      description: '8 documentos assinados automaticamente',
-      timestamp: '2024-01-15T12:45:00',
-      status: 'success'
-    },
-    {
-      id: '4',
-      type: 'document_error',
-      description: 'Erro na geração - variável não preenchida',
-      timestamp: '2024-01-15T11:20:00',
-      status: 'error'
-    }
-  ]
-};
+// Real data from API
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleRefreshStats = () => {
-    setIsLoading(true);
+  // Real data queries
+  const { data: activity = [], isLoading: isLoadingActivity, refetch: refetchActivity } = useQuery({ 
+    queryKey: ['/api/activity'], 
+    select: (data: any[]) => data || []
+  });
+  
+  const { data: templates = [], isLoading: isLoadingTemplates, refetch: refetchTemplates } = useQuery({ 
+    queryKey: ['/api/templates'], 
+    select: (data: any[]) => data || []
+  });
+  
+  const { data: certificates = [], isLoading: isLoadingCertificates, refetch: refetchCertificates } = useQuery({ 
+    queryKey: ['/api/certificates'], 
+    select: (data: any[]) => data || []
+  });
+  
+  const { data: documents = [], isLoading: isLoadingDocuments, refetch: refetchDocuments } = useQuery({ 
+    queryKey: ['/api/documents'], 
+    select: (data: any[]) => data || []
+  });
+  
+  const isLoading = isLoadingActivity || isLoadingTemplates || isLoadingCertificates || isLoadingDocuments;
+  
+  // Calculate stats from real data
+  const totalDocuments = documents.length;
+  const templatesCount = templates.length;
+  const certificatesCount = certificates.length;
+  const pendingSignatures = documents.filter((doc: any) => doc.status === 'generated' || doc.status === 'processing').length;
+  
+  // Get recent activity (first 4 items)
+  const recentActivity = activity.slice(0, 4);
+  
+  const handleRefreshStats = async () => {
     console.log('Refreshing dashboard stats...');
-    // TODO: Implement actual stats refresh
-    setTimeout(() => setIsLoading(false), 1000);
+    await Promise.all([
+      refetchActivity(),
+      refetchTemplates(), 
+      refetchCertificates(),
+      refetchDocuments()
+    ]);
   };
 
   const getActivityIcon = (type: string) => {
@@ -123,9 +122,9 @@ export default function DashboardPage() {
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockStats.totalDocuments.toLocaleString('pt-BR')}</div>
+              <div className="text-2xl font-bold">{totalDocuments.toLocaleString('pt-BR')}</div>
               <p className="text-xs text-muted-foreground">
-                +{mockStats.documentsThisMonth} este mês
+                {documents.length > 0 ? `${documents.length} documentos` : 'Nenhum documento'}
               </p>
             </CardContent>
           </Card>
@@ -136,7 +135,7 @@ export default function DashboardPage() {
               <Upload className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockStats.templatesCount}</div>
+              <div className="text-2xl font-bold">{templatesCount}</div>
               <p className="text-xs text-muted-foreground">
                 Prontos para uso
               </p>
@@ -149,7 +148,7 @@ export default function DashboardPage() {
               <FileSignature className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockStats.certificatesCount}</div>
+              <div className="text-2xl font-bold">{certificatesCount}</div>
               <p className="text-xs text-muted-foreground">
                 Para assinatura digital
               </p>
@@ -162,9 +161,9 @@ export default function DashboardPage() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockStats.documentsThisMonth}</div>
+              <div className="text-2xl font-bold">{pendingSignatures}</div>
               <p className="text-xs text-muted-foreground">
-                Documentos gerados
+                Aguardando assinatura
               </p>
             </CardContent>
           </Card>
@@ -228,7 +227,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockStats.recentActivity.map((activity) => (
+                {recentActivity.map((activity) => (
                   <div key={activity.id} className="flex items-start gap-3">
                     <div className="mt-0.5">
                       {getActivityIcon(activity.type)}
