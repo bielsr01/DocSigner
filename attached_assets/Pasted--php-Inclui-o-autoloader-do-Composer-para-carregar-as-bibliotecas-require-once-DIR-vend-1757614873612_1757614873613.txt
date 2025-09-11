@@ -111,6 +111,6 @@ if ($argc >= 5) {
     // Retorna resultado em JSON para o Node.js
     echo "RESULT_JSON:" . json_encode($result) . "\n";
 } else {
-    echo "❌ Uso: php pdf-signer.php <pdf_input> <pdf_output> <pfx_path> <password>\n";
+    echo "❌ Uso: php sign_pdf_working.php <pdf_input> <pdf_output> <pfx_path> <password>\n";
     exit(1);
 }
