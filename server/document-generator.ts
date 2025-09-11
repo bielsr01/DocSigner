@@ -5,12 +5,14 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { SecurityUtils } from './security-utils';
 
 // Fix for __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
+import type { IStorage } from './storage.js';
 
 // Promisify execFile for async/await usage
 const execFileAsync = promisify(execFile);
@@ -49,6 +51,139 @@ export class DocumentGenerator {
       case 'libreoffice':
       default:
         return ConverterEngine.LIBREOFFICE;
+    }
+  }
+
+  /**
+   * Gera e assina automaticamente documento PDF usando template DOCX real
+   * Substitui variáveis {{nome}}, {{cpf}}, etc. preservando layout
+   * Após a geração, automaticamente assina o PDF usando o primeiro certificado ativo do usuário
+   * FALHA se não conseguir processar DOCX ou assinar (sem fallback)
+   * 
+   * @returns {Promise<{signed: boolean}>} Indica se o documento foi assinado ou apenas gerado
+   */
+  static async generateAndSignDocument(
+    templatePath: string,
+    variables: Record<string, any>,
+    outputPath: string,
+    userId: string,
+    documentId: string,
+    storage: IStorage
+  ): Promise<{signed: boolean}> {
+    console.log('🚀🔐 DocumentGenerator: Iniciando geração e assinatura automática...');
+    console.log(`Template: ${templatePath}`);
+    console.log(`Variables:`, JSON.stringify(variables, null, 2));
+    console.log(`Output: ${outputPath}`);
+    console.log(`User ID: ${userId}`);
+    console.log(`Document ID: ${documentId}`);
+
+    try {
+      // ETAPA 1: Gerar PDF usando o método existente
+      console.log('📄 ETAPA 1: Gerando PDF...');
+      await this.generateDocument(templatePath, variables, outputPath);
+      console.log('✅ PDF gerado com sucesso');
+
+      // ETAPA 2: Buscar certificado ativo do usuário
+      console.log('🔍 ETAPA 2: Buscando certificado ativo do usuário...');
+      const certificate = await storage.getFirstActiveCertificate(userId);
+      
+      if (!certificate) {
+        console.log('⚠️ Nenhum certificado ativo encontrado - mantendo documento não assinado');
+        
+        // Atualizar status do documento para "ready" (gerado mas não assinado)
+        await storage.updateDocument(documentId, {
+          status: 'ready'
+        }, userId);
+
+        console.log('✅ Status do documento atualizado para "ready" (não assinado)');
+        
+        // Log da atividade
+        await storage.createActivityLog({
+          type: 'document',
+          action: 'document_generated',
+          refId: documentId,
+          status: 'success',
+          message: 'Documento gerado com sucesso (não assinado - sem certificado ativo)',
+          details: 'PDF gerado usando template DOCX mas não assinado por falta de certificado ativo'
+        }, userId);
+
+        return { signed: false };
+      }
+
+      console.log(`✅ Certificado encontrado: ${certificate.name} (${certificate.type})`);
+
+      // ETAPA 3: Assinar o PDF usando PHP script
+      console.log('🔐 ETAPA 3: Assinando PDF...');
+      
+      // Registrar tentativa de assinatura no banco
+      const signature = await storage.createSignature({
+        documentId,
+        certificateId: certificate.id,
+        provider: 'FPDI/TCPDF',
+        status: 'processing'
+      }, userId);
+
+      try {
+        await this.signPdfWithCertificate(outputPath, certificate, storage, userId);
+        
+        // Atualizar assinatura como concluída
+        await storage.updateSignature(signature.id, {
+          status: 'completed',
+          signedAt: new Date()
+        }, userId);
+
+        console.log('✅ PDF assinado com sucesso');
+
+        // Atualizar status do documento para "signed"
+        await storage.updateDocument(documentId, {
+          status: 'signed'
+        }, userId);
+
+        console.log('✅ Status do documento atualizado para "signed"');
+
+        // Log da atividade
+        await storage.createActivityLog({
+          type: 'document',
+          action: 'document_signed',
+          refId: documentId,
+          status: 'success',
+          message: `Documento assinado automaticamente com certificado "${certificate.name}"`,
+          details: `Certificado: ${certificate.name} (${certificate.type}) | Provedor: FPDI/TCPDF`
+        }, userId);
+
+        return { signed: true };
+
+      } catch (signError: any) {
+        console.error('❌ Erro na assinatura do PDF:', signError);
+
+        // Atualizar assinatura como falhada
+        await storage.updateSignature(signature.id, {
+          status: 'failed',
+          errorMessage: signError.message
+        }, userId);
+
+        // Atualizar status do documento para "ready" (gerado mas não assinado devido a erro)
+        await storage.updateDocument(documentId, {
+          status: 'ready'
+        }, userId);
+
+        // Log do erro
+        await storage.createActivityLog({
+          type: 'document',
+          action: 'document_sign_failed',
+          refId: documentId,
+          status: 'error',
+          message: `Falha na assinatura automática: ${signError.message}`,
+          details: `Certificado: ${certificate.name} | Erro: ${signError.message}`
+        }, userId);
+
+        // Re-throw para que o caller saiba que houve erro na assinatura
+        throw new Error(`Falha na assinatura automática: ${signError.message}`);
+      }
+
+    } catch (error: any) {
+      console.error('❌ Erro no processo de geração e assinatura:', error);
+      throw error;
     }
   }
 
@@ -122,13 +257,23 @@ export class DocumentGenerator {
   ): Promise<void> {
     console.log('📄 Processando template DOCX...');
 
-    // Verificar se template existe
-    if (!fs.existsSync(templatePath)) {
-      throw new Error(`Template não encontrado: ${templatePath}`);
+    // SECURITY: Validar e carregar template de forma segura
+    let validatedTemplatePath: string;
+    let templateBuffer: Buffer;
+    
+    try {
+      validatedTemplatePath = SecurityUtils.validateTemplatePath(templatePath);
+      
+      // Verificar se template existe de forma segura
+      if (!SecurityUtils.safeFileExists(templatePath, 'uploads')) {
+        throw new Error(`Template não encontrado: ${templatePath}`);
+      }
+      
+      // Carregar template DOCX de forma segura
+      templateBuffer = SecurityUtils.safeReadFile(templatePath, 'uploads');
+    } catch (securityError: any) {
+      throw new Error(`SECURITY: Template path inválido - ${securityError.message}`);
     }
-
-    // Carregar template DOCX
-    const templateBuffer = fs.readFileSync(templatePath);
     console.log(`📁 Template carregado: ${templateBuffer.length} bytes`);
 
     // Criar PizZip do template
@@ -899,5 +1044,186 @@ builder.CloseFile();
     });
 
     console.log(`✅ Limpeza concluída: ${cleanedCount} arquivos removidos`);
+  }
+
+  /**
+   * Assina um PDF usando certificado digital via script PHP FPDI/TCPDF
+   */
+  private static async signPdfWithCertificate(
+    pdfPath: string,
+    certificate: any,
+    storage: IStorage,
+    userId: string
+  ): Promise<void> {
+    console.log('🔐 Iniciando assinatura digital do PDF...');
+    console.log(`PDF: ${pdfPath}`);
+    console.log(`Certificado: ${certificate.name} (${certificate.type})`);
+
+    // SECURITY: Verificar paths de forma segura
+    try {
+      // Validar path do PDF
+      SecurityUtils.validateDocumentPath(pdfPath);
+      if (!SecurityUtils.safeFileExists(pdfPath, 'uploads')) {
+        throw new Error(`PDF não encontrado para assinatura: ${pdfPath}`);
+      }
+
+      // Validar path do certificado
+      SecurityUtils.validateCertificatePath(certificate.storageRef);
+      if (!SecurityUtils.safeFileExists(certificate.storageRef, 'uploads')) {
+        throw new Error(`Arquivo de certificado não encontrado: ${certificate.storageRef}`);
+      }
+    } catch (securityError: any) {
+      throw new Error(`SECURITY: Path validation failed - ${securityError.message}`);
+    }
+
+    // Verificar se há senha para o certificado
+    if (!certificate.passwordHash) {
+      throw new Error(`Certificado "${certificate.name}" não possui senha configurada para assinatura automática`);
+    }
+
+    // Criar arquivos temporários para assinatura
+    const tempDir = path.join(__dirname, '..', 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const timestamp = Date.now();
+    const tempSignedPath = path.join(tempDir, `signed_${timestamp}.pdf`);
+
+    try {
+      // Descriptografar a senha do certificado (assumindo que está em base64)
+      const certificatePassword = Buffer.from(certificate.passwordHash, 'base64').toString('utf-8');
+      
+      // Preparar comando PHP para assinatura
+      const phpScriptPath = path.join(__dirname, '..', 'php-signer', 'pdf-signer.php');
+      
+      if (!fs.existsSync(phpScriptPath)) {
+        throw new Error(`Script PHP de assinatura não encontrado: ${phpScriptPath}`);
+      }
+
+      console.log('📝 Executando script PHP de assinatura...');
+      console.log(`Script: ${phpScriptPath}`);
+      console.log(`Input: ${pdfPath}`);
+      console.log(`Output: ${tempSignedPath}`);
+      console.log(`Certificate: ${certificate.storageRef}`);
+
+      // SEGURANÇA: Executar script PHP sem senha em argumentos CLI
+      const phpArgs = [
+        phpScriptPath,
+        '--input', pdfPath,
+        '--output', tempSignedPath,
+        '--cert', certificate.storageRef
+      ];
+
+      console.log(`🔧 Comando PHP (senha via STDIN): php ${phpArgs.join(' ')}`);
+
+      // SECURITY: Executar PHP e enviar senha via STDIN para segurança
+      const { spawn } = require('child_process');
+      
+      const phpProcess = spawn('php', phpArgs, {
+        cwd: path.dirname(phpScriptPath),
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: false, // Segurança: não usar shell para evitar command injection
+        timeout: 60000 // 60 segundos timeout no spawn level também
+      });
+
+      // Enviar senha via STDIN imediatamente e fechar pipe
+      phpProcess.stdin.write(certificatePassword + '\n');
+      phpProcess.stdin.end();
+
+      console.log('📡 Senha enviada via STDIN, aguardando resposta do PHP...');
+
+      // Capturar output
+      let stdout = '';
+      let stderr = '';
+      
+      phpProcess.stdout.on('data', (data: Buffer) => {
+        stdout += data.toString();
+      });
+      
+      phpProcess.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      // Aguardar conclusão com timeout
+      const processResult = await new Promise<{code: number | null, signal: string | null}>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          phpProcess.kill();
+          reject(new Error('TIMEOUT: PHP process took longer than 60 seconds'));
+        }, 60000);
+
+        phpProcess.on('close', (code: number | null, signal: string | null) => {
+          clearTimeout(timeout);
+          resolve({ code, signal });
+        });
+
+        phpProcess.on('error', (error: Error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+      });
+
+      if (processResult.code !== 0) {
+        throw new Error(`PHP process failed with code ${processResult.code}: ${stderr}`);
+      }
+
+      if (stdout) {
+        console.log('📤 PHP stdout:', stdout.trim());
+      }
+
+      if (stderr) {
+        console.log('📤 PHP stderr:', stderr.trim());
+      }
+
+      // Verificar se o PDF assinado foi criado
+      if (!fs.existsSync(tempSignedPath)) {
+        throw new Error(`PDF assinado não foi gerado: ${tempSignedPath}`);
+      }
+
+      const signedFileSize = fs.statSync(tempSignedPath).size;
+      console.log(`✅ PDF assinado criado: ${signedFileSize} bytes`);
+
+      // Substituir o PDF original pelo PDF assinado
+      fs.copyFileSync(tempSignedPath, pdfPath);
+      console.log(`✅ PDF original substituído pelo PDF assinado: ${pdfPath}`);
+
+      // Verificar o tamanho final
+      const finalFileSize = fs.statSync(pdfPath).size;
+      console.log(`📊 Tamanho final do PDF assinado: ${finalFileSize} bytes`);
+
+    } catch (signError: any) {
+      console.error('❌ Erro na assinatura PHP:', {
+        code: signError.code,
+        signal: signError.signal,
+        stdout: signError.stdout,
+        stderr: signError.stderr,
+        message: signError.message
+      });
+
+      // Mensagens de erro específicas
+      let errorMessage = 'Falha na assinatura digital: ';
+      
+      if (signError.code === 'ENOENT') {
+        errorMessage += 'PHP não encontrado no sistema. Instale o PHP para usar assinatura digital.';
+      } else if (signError.signal === 'SIGTERM') {
+        errorMessage += 'Timeout na assinatura (>60s). Certificado muito complexo ou sistema lento.';
+      } else if (signError.stderr && signError.stderr.includes('password')) {
+        errorMessage += 'Senha do certificado incorreta ou certificado inválido.';
+      } else if (signError.stderr && signError.stderr.includes('FPDI')) {
+        errorMessage += 'Erro na biblioteca FPDI/TCPDF. Verifique a instalação das dependências PHP.';
+      } else if (signError.stderr) {
+        errorMessage += `PHP error: ${signError.stderr}`;
+      } else {
+        errorMessage += signError.message;
+      }
+
+      throw new Error(errorMessage);
+
+    } finally {
+      // Limpar arquivo temporário
+      this.cleanupTempFiles([tempSignedPath]);
+    }
+
+    console.log('✅ Assinatura digital concluída com sucesso');
   }
 }

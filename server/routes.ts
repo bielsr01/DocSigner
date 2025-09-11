@@ -18,6 +18,7 @@ import {
 } from "@shared/schema";
 import type { User } from "@shared/schema";
 import { CertificateReader } from "./pdf-signer";
+import { SecurityUtils } from "./security-utils";
 
 // Extend Express Request to include session user
 declare module 'express-session' {
@@ -281,23 +282,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'Template not found' });
       }
       
-      // Validate and secure the file path
-      const uploadsRoot = path.resolve(process.cwd(), 'uploads');
-      const requestedPath = path.resolve(process.cwd(), template.storageRef);
-      
-      // Ensure the path is within uploads directory (prevent path traversal)
-      const relativePath = path.relative(uploadsRoot, requestedPath);
-      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-        console.error('Path traversal attempt detected:', template.storageRef);
-        return res.status(403).json({ error: 'Access denied' });
+      // SECURITY: Validar path com SecurityUtils para prevenir path traversal
+      let filePath: string;
+      try {
+        filePath = SecurityUtils.validateTemplatePath(template.storageRef);
+        
+        // Verificar se arquivo existe de forma segura
+        if (!SecurityUtils.safeFileExists(template.storageRef, 'uploads')) {
+          return res.status(404).json({ error: 'File not found on disk' });
+        }
+      } catch (securityError: any) {
+        console.error('SECURITY: Path validation failed for template download:', securityError.message);
+        return res.status(403).json({ error: 'Access denied - invalid file path' });
       }
-      
-      // Check if file exists
-      if (!fs.existsSync(requestedPath)) {
-        return res.status(404).json({ error: 'File not found on disk' });
-      }
-      
-      const filePath = requestedPath;
       
       // Sanitize filename for security
       const safeFilename = (template.originalFilename || 'template').replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -307,8 +304,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Type', template.mimeType || 'application/octet-stream');
       res.setHeader('X-Content-Type-Options', 'nosniff');
       
-      // Stream the file
-      const fileStream = fs.createReadStream(filePath);
+      // SECURITY: Stream the file usando SecurityUtils
+      const fileStream = SecurityUtils.safeCreateReadStream(template.storageRef, 'uploads');
       fileStream.pipe(res);
     } catch (error) {
       console.error('Template download error:', error);
@@ -544,38 +541,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const variablesData = JSON.parse(docData.variables);
           console.log(`Variables for ${document.filename}:`, variablesData);
           
-          // USAR NOVO GERADOR NATIVO NODE.JS
-          console.log('🚀 Usando NOVO DocumentGenerator (biblioteca nativa)');
+          // USAR NOVO GERADOR NATIVO NODE.JS COM ASSINATURA AUTOMÁTICA
+          console.log('🚀🔐 Usando NOVO DocumentGenerator com assinatura automática');
           try {
-            await DocumentGenerator.generateDocument(
+            const result = await DocumentGenerator.generateAndSignDocument(
               template.storageRef,
               variablesData,
-              outputPath
+              outputPath,
+              user.id,
+              document.id,
+              storage
             );
-            documentStatus = "generated";
-            console.log('✅ NOVO DocumentGenerator: Sucesso!');
+            
+            // Usar o valor de retorno para determinar status correto
+            documentStatus = result.signed ? "signed" : "ready";
+            console.log(`✅ NOVO DocumentGenerator: Documento ${result.signed ? 'assinado' : 'gerado'} com sucesso!`);
           } catch (generatorError: any) {
-            console.log('⚠️ NOVO DocumentGenerator falhou:', generatorError?.message);
+            console.log('⚠️ NOVO DocumentGenerator com assinatura falhou:', generatorError?.message);
             documentStatus = "failed";
-            errorMessage = generatorError?.message || 'Erro na geração';
+            errorMessage = generatorError?.message || 'Erro na geração/assinatura';
           }
 
           console.log(`📄 Documento ${document.filename}: Status = ${documentStatus}`);
           
-          // Verify the file was actually created
-          if (!fs.existsSync(outputPath)) {
+          // Verify the file was actually created (only if not failed)
+          if (documentStatus !== "failed" && !fs.existsSync(outputPath)) {
             throw new Error('PDF file was not created successfully');
           }
           
-          // Update document with storage reference and mark as ready
-          await storage.updateDocument(document.id, {
-            storageRef: outputPath,
-            status: "ready"
-          }, user.id);
+          // Update document with storage reference (status already set by generateAndSignDocument)
+          if (documentStatus !== "failed") {
+            await storage.updateDocument(document.id, {
+              storageRef: outputPath
+            }, user.id);
+          }
           
-          documentStatus = "ready";
           successCount++;
-          console.log(`✅ PDF generation successful for: ${document.filename}`)
+          console.log(`✅ PDF generation process completed for: ${document.filename}`)
           
           
         } catch (pdfError) {
