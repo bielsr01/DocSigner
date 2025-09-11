@@ -1159,16 +1159,18 @@ builder.CloseFile();
       console.log(`📁 Certificado absoluto: ${absoluteCertPath}`);
       console.log(`📄 Certificado existe: ${fs.existsSync(absoluteCertPath) ? 'SIM' : 'NÃO'}`);
       
+      // Usar novo formato de argumentos diretos (código funcional do usuário)
       let phpArgs = [
         phpScriptPath,
-        '--input', pdfPath,
-        '--output', tempSignedPath,
-        '--cert', absoluteCertPath
+        pdfPath,
+        tempSignedPath,
+        absoluteCertPath,
+        certificatePassword
       ];
 
-      console.log(`🔧 Comando PHP (senha via STDIN): php ${phpArgs.join(' ')}`);
+      console.log(`🔧 Comando PHP com argumentos diretos: php ${phpScriptPath} [args...]`);
 
-      // SECURITY: Executar PHP e enviar senha via STDIN para segurança
+      // Executar PHP com argumentos diretos para compatibilidade
       const phpProcess = spawn('php', phpArgs, {
         cwd: path.dirname(phpScriptPath),
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -1176,11 +1178,7 @@ builder.CloseFile();
         timeout: 60000 // 60 segundos timeout no spawn level também
       });
 
-      // Enviar senha via STDIN imediatamente e fechar pipe
-      phpProcess.stdin.write(certificatePassword + '\n');
-      phpProcess.stdin.end();
-
-      console.log('📡 Senha enviada via STDIN, aguardando resposta do PHP...');
+      console.log('📡 PHP executado com logs detalhados, aguardando resposta...');
 
       // Capturar output
       let stdout = '';
