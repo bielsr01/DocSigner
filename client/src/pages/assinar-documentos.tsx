@@ -72,11 +72,11 @@ export default function AssinarDocumentosPage() {
   };
 
   const handleSignDocument = (documentId: string) => {
-    if (selectedCertificate && certificatePassword) {
+    if (selectedCertificate) {
       signDocumentMutation.mutate({
         documentId,
         certificateId: selectedCertificate,
-        certificatePassword
+        certificatePassword: '' // Remove password requirement
       });
     }
   };
@@ -120,10 +120,10 @@ export default function AssinarDocumentosPage() {
     return signatures.find(sig => sig.documentId === documentId);
   };
 
-  const isSigningEnabled = selectedCertificate && certificatePassword;
+  const isSigningEnabled = selectedCertificate;
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
@@ -166,17 +166,6 @@ export default function AssinarDocumentosPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <Label htmlFor="password">Senha do Certificado</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Digite a senha do certificado"
-                value={certificatePassword}
-                onChange={(e) => setCertificatePassword(e.target.value)}
-                data-testid="input-certificate-password"
-              />
             </div>
           </div>
           {!isSigningEnabled && (

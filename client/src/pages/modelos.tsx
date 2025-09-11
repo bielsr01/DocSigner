@@ -115,14 +115,20 @@ export default function ModelosPage() {
         // Download template
         window.open(`/api/templates/${templateId}/download`, '_blank');
         break;
+      case 'edit':
+        // TODO: Implementar edição de template
+        toast({
+          title: "Em desenvolvimento",
+          description: "Funcionalidade de edição será implementada em breve",
+        });
+        break;
       default:
         console.log(`${action} template:`, templateId);
     }
   };
 
   return (
-    <div className="p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold">Modelos de Documento</h1>
@@ -239,14 +245,6 @@ export default function ModelosPage() {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={() => handleTemplateAction('preview', template.id)}
-                      data-testid={`button-preview-${template.id}`}
-                    >
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
                       onClick={() => handleTemplateAction('edit', template.id)}
                       data-testid={`button-edit-${template.id}`}
                     >
@@ -288,9 +286,8 @@ export default function ModelosPage() {
                 Enviar Primeiro Modelo
               </Button>
             )}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
