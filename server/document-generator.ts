@@ -20,7 +20,8 @@ const execFileAsync = promisify(execFile);
  */
 enum ConverterEngine {
   LIBREOFFICE = 'libreoffice',
-  ONLYOFFICE_HTTP = 'onlyoffice-http'
+  ONLYOFFICE_HTTP = 'onlyoffice-http',
+  ONLYOFFICE_BUILDER = 'onlyoffice-builder'
 }
 
 /**
@@ -42,6 +43,8 @@ export class DocumentGenerator {
     switch (envConverter) {
       case 'onlyoffice-http':
         return ConverterEngine.ONLYOFFICE_HTTP;
+      case 'onlyoffice-builder':
+        return ConverterEngine.ONLYOFFICE_BUILDER;
       case 'libreoffice':
       default:
         return ConverterEngine.LIBREOFFICE;
@@ -171,7 +174,9 @@ export class DocumentGenerator {
       // Verificar se PDF foi gerado
       if (!fs.existsSync(tempPdfPath)) {
         const engine = this.getConverterEngine();
-        throw new Error(`PDF não foi gerado pelo ${engine === ConverterEngine.ONLYOFFICE_HTTP ? 'OnlyOffice' : 'LibreOffice'}: ${tempPdfPath}`);
+        const engineName = engine === ConverterEngine.ONLYOFFICE_HTTP ? 'OnlyOffice HTTP' : 
+                          engine === ConverterEngine.ONLYOFFICE_BUILDER ? 'OnlyOffice Builder' : 'LibreOffice';
+        throw new Error(`PDF não foi gerado pelo ${engineName}: ${tempPdfPath}`);
       }
 
       // Mover PDF para destino final
@@ -199,6 +204,10 @@ export class DocumentGenerator {
       
       case ConverterEngine.ONLYOFFICE_HTTP:
         await this.convertWithOnlyOfficeHttp(docxPath, outputDir);
+        break;
+      
+      case ConverterEngine.ONLYOFFICE_BUILDER:
+        await this.convertWithOnlyOfficeBuilder(docxPath, outputDir);
         break;
         
       default:
@@ -600,6 +609,83 @@ export class DocumentGenerator {
     };
     
     return errorMessages[errorCode] || `Erro OnlyOffice ${errorCode}`;
+  }
+
+  /**
+   * Converte DOCX para PDF usando OnlyOffice Document Builder (biblioteca JavaScript)
+   * 
+   * VANTAGENS DO DOCUMENT BUILDER:
+   * - ✅ Biblioteca JavaScript nativa (sem servidor externo)
+   * - ✅ Performance superior ao LibreOffice (sem fork de processo)
+   * - ✅ API programática completa para manipulação de documentos
+   * - ✅ Melhor compatibilidade com DOCX (engine OnlyOffice nativo)
+   * - ✅ Zero configuração (NPM install apenas)
+   * - ✅ Execução local (sem dependências de rede)
+   * 
+   * INSTALAÇÃO: npm install @onlyoffice/documentbuilder
+   * USO: export DOC_CONVERTER=onlyoffice-builder
+   */
+  private static async convertWithOnlyOfficeBuilder(docxPath: string, outputDir: string): Promise<void> {
+    console.log('📚 Usando OnlyOffice Document Builder para conversão DOCX→PDF...');
+    
+    try {
+      // Importar OnlyOffice Document Builder dinamicamente
+      const docBuilder = await import('@onlyoffice/documentbuilder');
+      
+      // Gerar nome do arquivo PDF de saída (deve coincidir com processDocxTemplate)
+      const timestamp = Date.now();
+      const outputFileName = `temp_${timestamp}.pdf`;
+      const outputPath = path.join(outputDir, outputFileName);
+      
+      console.log(`📄 Convertendo: ${path.basename(docxPath)} → ${outputFileName}`);
+      
+      // Inicializar Document Builder
+      console.log('🔧 Inicializando OnlyOffice Document Builder...');
+      
+      // Abrir documento DOCX existente
+      console.log(`📂 Abrindo documento: ${docxPath}`);
+      const oDocument = docBuilder.GetDocument(docxPath);
+      
+      if (!oDocument) {
+        throw new Error('Falha ao abrir documento DOCX com OnlyOffice Document Builder');
+      }
+      
+      console.log('✅ Documento DOCX carregado com sucesso');
+      
+      // Converter para PDF e salvar
+      console.log(`💾 Salvando como PDF: ${outputPath}`);
+      const saveResult = oDocument.SaveAs(outputPath, 'pdf');
+      
+      if (!saveResult) {
+        throw new Error('Falha na conversão DOCX→PDF com OnlyOffice Document Builder');
+      }
+      
+      // Verificar se arquivo foi criado
+      if (!fs.existsSync(outputPath)) {
+        throw new Error(`PDF não foi gerado: ${outputPath}`);
+      }
+      
+      const pdfStats = fs.statSync(outputPath);
+      console.log(`✅ OnlyOffice Document Builder conversão concluída: ${pdfStats.size} bytes`);
+      
+    } catch (error: any) {
+      console.error('❌ Erro na conversão OnlyOffice Document Builder:', error);
+      
+      // Mensagens de erro específicas
+      let errorMessage = 'Falha na conversão DOCX→PDF com OnlyOffice Document Builder: ';
+      
+      if (error.code === 'MODULE_NOT_FOUND' && error.message.includes('@onlyoffice/documentbuilder')) {
+        errorMessage += 'Módulo @onlyoffice/documentbuilder não encontrado. Execute: npm install @onlyoffice/documentbuilder';
+      } else if (error.message.includes('GetDocument')) {
+        errorMessage += 'Falha ao abrir documento DOCX. Verifique se o arquivo está válido.';
+      } else if (error.message.includes('SaveAs')) {
+        errorMessage += 'Falha na conversão para PDF. Documento pode estar corrompido.';
+      } else {
+        errorMessage += error.message;
+      }
+      
+      throw new Error(errorMessage);
+    }
   }
 
   /**
