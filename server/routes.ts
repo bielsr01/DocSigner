@@ -839,6 +839,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Document download route
+  app.get("/api/documents/:id/download", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      
+      const document = await storage.getDocument(req.params.id, user.id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      if (!document.storageRef) {
+        return res.status(400).json({ error: "Document file not found" });
+      }
+      
+      // Validate and secure the file path
+      const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+      const requestedPath = path.resolve(process.cwd(), document.storageRef);
+      
+      // Ensure the path is within uploads directory (prevent path traversal)
+      const relativePath = path.relative(uploadsRoot, requestedPath);
+      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+        console.error('Path traversal attempt detected:', document.storageRef);
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Check if file exists
+      if (!fs.existsSync(requestedPath)) {
+        console.error('Document file not found on disk:', requestedPath);
+        return res.status(404).json({ error: 'File not found on disk' });
+      }
+      
+      // Sanitize filename for security
+      const safeFilename = (document.filename || 'document.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
+      
+      // Set appropriate headers with security measures
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);  
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(requestedPath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error('Document download error:', error);
+      res.status(500).json({ error: 'Failed to download document' });
+    }
+  });
+
   // PDF signature verification route
   app.get("/api/documents/:id/verify", requireAuth, async (req, res) => {
     try {
