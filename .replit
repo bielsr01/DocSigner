@@ -26,7 +26,7 @@ externalPort = 3001
 PORT = "5000"
 
 [workflows]
-runButton = "Restart System"
+runButton = "Test System"
 
 [[workflows.workflow]]
 name = "Project"
@@ -48,6 +48,15 @@ waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Restart System"
+author = 47455704
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+
+[[workflows.workflow]]
+name = "Test System"
 author = 47455704
 mode = "sequential"
 

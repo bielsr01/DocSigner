@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -24,7 +25,6 @@ export default function ModelosPage() {
     queryKey: ['/api/templates'],
     enabled: true
   }) as { data: Template[]; isLoading: boolean; error: any };
-
 
   // Upload template mutation
   const uploadTemplateMutation = useMutation({
@@ -198,6 +198,7 @@ export default function ModelosPage() {
             </DialogContent>
           </Dialog>
         </div>
+      </div>
 
       {/* Search Bar */}
       <div className="relative mb-8">
@@ -213,71 +214,71 @@ export default function ModelosPage() {
 
       {/* Templates Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredTemplates.map((template) => (
-            <Card key={template.id} className="hover:shadow-lg transition-shadow duration-200">
-              <CardHeader className="pb-4">
-                <div className="flex items-start justify-between mb-3">
-                  <FileText className="w-8 h-8 text-primary flex-shrink-0" />
-                  <Badge variant="secondary">{template.fileSize}</Badge>
-                </div>
-                <CardTitle className="text-lg line-clamp-2">{template.name}</CardTitle>
-                <CardDescription className="line-clamp-2">{template.description}</CardDescription>
-              </CardHeader>
-              
-              <CardContent className="pt-0">
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium mb-3">Variáveis encontradas:</p>
-                    <div className="flex flex-wrap gap-2 min-h-[2rem]">
-                      {template.variables.length > 0 ? (
-                        template.variables.map((variable, index) => (
-                          <Badge key={index} variant="outline" className="text-xs font-mono">
-                            {variable}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Nenhuma variável encontrada</span>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="text-xs text-muted-foreground pt-2 border-t">
-                    Criado em {new Date(template.createdAt).toLocaleDateString('pt-BR')}
-                  </div>
-                  
-                  <div className="flex gap-2 pt-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleTemplateAction('edit', template.id)}
-                      data-testid={`button-edit-${template.id}`}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleTemplateAction('download', template.id)}
-                      data-testid={`button-download-${template.id}`}
-                    >
-                      <Download className="w-4 h-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleTemplateAction('delete', template.id)}
-                      data-testid={`button-delete-${template.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+        {filteredTemplates.map((template) => (
+          <Card key={template.id} className="hover:shadow-lg transition-shadow duration-200">
+            <CardHeader className="pb-4">
+              <div className="flex items-start justify-between mb-3">
+                <FileText className="w-8 h-8 text-primary flex-shrink-0" />
+                <Badge variant="secondary">{template.fileSize}</Badge>
+              </div>
+              <CardTitle className="text-lg line-clamp-2">{template.name}</CardTitle>
+              <CardDescription className="line-clamp-2">{template.description}</CardDescription>
+            </CardHeader>
+            
+            <CardContent className="pt-0">
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium mb-3">Variáveis encontradas:</p>
+                  <div className="flex flex-wrap gap-2 min-h-[2rem]">
+                    {template.variables.length > 0 ? (
+                      template.variables.map((variable, index) => (
+                        <Badge key={index} variant="outline" className="text-xs font-mono">
+                          {variable}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Nenhuma variável encontrada</span>
+                    )}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        
-        {filteredTemplates.length === 0 && (
+                
+                <div className="text-xs text-muted-foreground pt-2 border-t">
+                  Criado em {new Date(template.createdAt).toLocaleDateString('pt-BR')}
+                </div>
+                
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleTemplateAction('edit', template.id)}
+                    data-testid={`button-edit-${template.id}`}
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleTemplateAction('download', template.id)}
+                    data-testid={`button-download-${template.id}`}
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleTemplateAction('delete', template.id)}
+                    data-testid={`button-delete-${template.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      
+      {filteredTemplates.length === 0 && (
         <div className="text-center py-16">
           <div className="max-w-md mx-auto">
             <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-6" />
