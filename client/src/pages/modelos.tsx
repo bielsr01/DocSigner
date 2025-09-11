@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -24,7 +25,6 @@ export default function ModelosPage() {
     queryKey: ['/api/templates'],
     enabled: true
   }) as { data: Template[]; isLoading: boolean; error: any };
-
 
   // Upload template mutation
   const uploadTemplateMutation = useMutation({
@@ -128,22 +128,22 @@ export default function ModelosPage() {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold">Modelos de Documento</h1>
-            <p className="text-muted-foreground">Gerencie seus templates com variáveis dinâmicas</p>
-          </div>
-          
-          <div className="flex gap-2">
-            <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-upload-template">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Novo Modelo
-                </Button>
-              </DialogTrigger>
-            <DialogContent>
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Modelos de Documento</h1>
+          <p className="text-muted-foreground">Gerencie seus templates com variáveis dinâmicas</p>
+        </div>
+        
+        <div className="flex gap-2">
+          <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-upload-template">
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Modelo
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
                 <DialogTitle>Enviar Novo Modelo</DialogTitle>
                 <DialogDescription>
@@ -151,7 +151,7 @@ export default function ModelosPage() {
                 </DialogDescription>
               </DialogHeader>
               
-              <div className="space-y-4">
+              <div className="space-y-6 mt-6">
                 <div>
                   <Label htmlFor="template-name">Nome do modelo</Label>
                   <Input
@@ -198,97 +198,103 @@ export default function ModelosPage() {
             </DialogContent>
           </Dialog>
         </div>
+      </div>
 
-        {/* Search Bar */}
-        <div className="relative mb-6">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-          <Input
-            placeholder="Pesquisar modelos..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            data-testid="input-search-templates"
-          />
-        </div>
+      {/* Search Bar */}
+      <div className="relative mb-8">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          placeholder="Pesquisar modelos..."
+          className="pl-10 max-w-md"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          data-testid="input-search-templates"
+        />
+      </div>
 
-        {/* Templates Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTemplates.map((template) => (
-            <Card key={template.id} className="hover-elevate">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <FileText className="w-8 h-8 text-primary" />
-                  <Badge variant="secondary">{template.fileSize}</Badge>
-                </div>
-                <CardTitle className="text-lg">{template.name}</CardTitle>
-                <CardDescription>{template.description}</CardDescription>
-              </CardHeader>
-              
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium mb-2">Variáveis encontradas:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {template.variables.map((variable, index) => (
+      {/* Templates Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {filteredTemplates.map((template) => (
+          <Card key={template.id} className="hover:shadow-lg transition-shadow duration-200">
+            <CardHeader className="pb-4">
+              <div className="flex items-start justify-between mb-3">
+                <FileText className="w-8 h-8 text-primary flex-shrink-0" />
+                <Badge variant="secondary">{template.originalFilename || 'Template'}</Badge>
+              </div>
+              <CardTitle className="text-lg line-clamp-2">{template.name}</CardTitle>
+              <CardDescription className="line-clamp-2">Template com {template.variables.length} variáveis</CardDescription>
+            </CardHeader>
+            
+            <CardContent className="pt-0">
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium mb-3">Variáveis encontradas:</p>
+                  <div className="flex flex-wrap gap-2 min-h-[2rem]">
+                    {template.variables.length > 0 ? (
+                      template.variables.map((variable, index) => (
                         <Badge key={index} variant="outline" className="text-xs font-mono">
                           {variable}
                         </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="text-xs text-muted-foreground">
-                    Criado em {new Date(template.createdAt).toLocaleDateString('pt-BR')}
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleTemplateAction('edit', template.id)}
-                      data-testid={`button-edit-${template.id}`}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleTemplateAction('download', template.id)}
-                      data-testid={`button-download-${template.id}`}
-                    >
-                      <Download className="w-4 h-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleTemplateAction('delete', template.id)}
-                      data-testid={`button-delete-${template.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Nenhuma variável encontrada</span>
+                    )}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        
-        {filteredTemplates.length === 0 && (
-          <div className="text-center py-12">
-            <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhum modelo encontrado</h3>
-            <p className="text-muted-foreground mb-4">
+                
+                <div className="text-xs text-muted-foreground pt-2 border-t">
+                  Criado em {new Date(template.createdAt).toLocaleDateString('pt-BR')}
+                </div>
+                
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleTemplateAction('edit', template.id)}
+                    data-testid={`button-edit-${template.id}`}
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleTemplateAction('download', template.id)}
+                    data-testid={`button-download-${template.id}`}
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleTemplateAction('delete', template.id)}
+                    data-testid={`button-delete-${template.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      
+      {filteredTemplates.length === 0 && (
+        <div className="text-center py-16">
+          <div className="max-w-md mx-auto">
+            <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-6" />
+            <h3 className="text-xl font-semibold mb-3">Nenhum modelo encontrado</h3>
+            <p className="text-muted-foreground mb-6">
               {searchTerm ? 'Tente uma pesquisa diferente' : 'Comece enviando seu primeiro modelo'}
             </p>
             {!searchTerm && (
-              <Button onClick={() => setIsUploadDialogOpen(true)}>
+              <Button onClick={() => setIsUploadDialogOpen(true)} size="lg">
                 <Plus className="w-4 h-4 mr-2" />
                 Enviar Primeiro Modelo
               </Button>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

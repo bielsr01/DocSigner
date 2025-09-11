@@ -293,7 +293,7 @@ export default function CertificadosPage() {
                             {getStatusBadge(certificate)}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            Criado em {formatDate(certificate.createdAt)}
+                            Criado em {formatDate(certificate.createdAt.toISOString())}
                           </div>
                         </div>
                       </div>
