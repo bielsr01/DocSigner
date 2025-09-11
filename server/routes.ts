@@ -181,7 +181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`Extracting variables from ${extension} file: ${req.file.originalname}`);
           // Usar variáveis fixas para template NR12
           const templateVariables = ['nome', 'cpf', 'data_conclusao', 'data_assinatura'];
-          extractedVariables = templateVariables.map(v => v.name);
+          extractedVariables = templateVariables;
           console.log(`Found ${extractedVariables.length} variables:`, extractedVariables);
         }
       } catch (error) {
@@ -566,26 +566,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           console.log(`📄 Documento ${document.filename}: Status = ${documentStatus}`);
-                const pdfBytes = await pdfDoc.save();
-                await import('fs').then(fs => fs.promises.writeFile(outputPath, pdfBytes));
-                
-                processorSucceeded = true;
-                console.log('✅ Simple PDF fallback succeeded');
-              } catch (fallbackError) {
-                console.error('❌ All processors failed including simple fallback:', fallbackError.message);
-                throw fallbackError;
-              }
-            }
-          } else {
-            // Use PDFProcessor for PDF templates
-            console.log('Using PDFProcessor for PDF template...');
-            await PDFProcessor.generateDocument(
-              template.storageRef,
-              variablesData,
-              outputPath
-            );
-            processorSucceeded = true;
-          }
           
           // Verify the file was actually created
           if (!fs.existsSync(outputPath)) {
@@ -600,7 +580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           documentStatus = "ready";
           successCount++;
-          console.log(`✅ PDF generation successful for: ${document.filename}`);
+          console.log(`✅ PDF generation successful for: ${document.filename}`)
           
           // Create signature for automatic processing only on success
           await storage.createSignature({
@@ -665,144 +645,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create test template endpoint
-  app.post("/api/templates/create-test", requireAuth, async (req, res) => {
-    try {
-      const user = (req as any).user;
-      
-      // Create test template directory
-      const templateDir = 'uploads/templates';
-      if (!fs.existsSync(templateDir)) {
-        fs.mkdirSync(templateDir, { recursive: true });
-      }
-      
-      const testTemplatePath = path.join(templateDir, `test-template-${Date.now()}.pdf`);
-      
-      // Create test PDF template with variables
-      await PDFProcessor.createTestTemplate(testTemplatePath);
-      
-      // Extract variables from the created template
-      const extractedVariables = await PDFProcessor.extractVariables(testTemplatePath);
-      
-      // Create template in database
-      const templateData = {
-        name: "Template de Teste",
-        variables: extractedVariables.map(v => v.name),
-        storageRef: testTemplatePath,
-        originalFilename: "test-template.pdf",
-        mimeType: "application/pdf"
-      };
-      
-      const validatedData = insertTemplateSchema.parse(templateData);
-      const template = await storage.createTemplate(validatedData, user.id);
-      
-      // Log activity
-      await storage.createActivityLog({
-        type: "template",
-        action: "template_created",
-        refId: template.id,
-        status: "success",
-        message: `Test template "${template.name}" created successfully`,
-        details: `Template with variables: ${template.variables.join(', ')}`,
-        template: template.name
-      }, user.id);
-      
-      res.json(template);
-    } catch (error) {
-      console.error("Create test template error:", error);
-      res.status(500).json({ error: "Failed to create test template" });
-    }
-  });
-
-  // Generate document from test template endpoint
-  app.post("/api/documents/test-generate", requireAuth, async (req, res) => {
-    try {
-      const user = (req as any).user;
-      
-      const { templateId } = req.body;
-      
-      if (!templateId) {
-        return res.status(400).json({ error: "Template ID required" });
-      }
-      
-      // Test data
-      const testData = {
-        nome: "João Silva",
-        data: new Date().toLocaleDateString('pt-BR')
-      };
-      
-      // Generate document using existing endpoint logic
-      const template = await storage.getTemplate(templateId, user.id);
-      if (!template) {
-        return res.status(404).json({ error: "Template not found" });
-      }
-      
-      const docData = {
-        templateId,
-        filename: `${template.name}_teste_${new Date().getTime()}.pdf`,
-        variables: JSON.stringify(testData),
-        status: "processing"
-      };
-      
-      const document = await storage.createDocument(docData, user.id);
-      
-      try {
-        // Generate the actual PDF file
-        const outputDir = 'uploads/documents';
-        const outputPath = path.join(outputDir, document.filename);
-        
-        // Ensure output directory exists
-        if (!fs.existsSync(outputDir)) {
-          fs.mkdirSync(outputDir, { recursive: true });
-        }
-        
-        // Generate PDF using PDFProcessor
-        await PDFProcessor.generateDocument(
-          template.storageRef,
-          testData,
-          outputPath
-        );
-        
-        // Update document with storage reference and mark as ready
-        await storage.updateDocument(document.id, {
-          storageRef: outputPath,
-          status: "ready"
-        }, user.id);
-        
-        // Log activity
-        await storage.createActivityLog({
-          type: "document",
-          action: "test_document_generated",
-          refId: document.id,
-          status: "success",
-          message: `Test document "${document.filename}" generated successfully`,
-          details: `Generated with data: ${JSON.stringify(testData)}`,
-          documentName: document.filename,
-          template: template.name
-        }, user.id);
-        
-        res.json({
-          document,
-          testData,
-          message: "Test document generated successfully"
-        });
-        
-      } catch (pdfError) {
-        console.error(`PDF generation failed for test document ${document.id}:`, pdfError);
-        
-        // Mark document as failed
-        await storage.updateDocument(document.id, {
-          status: "failed"
-        }, user.id);
-        
-        res.status(500).json({ error: "PDF generation failed" });
-      }
-      
-    } catch (error) {
-      console.error("Test generate error:", error);
-      res.status(500).json({ error: "Failed to generate test document" });
-    }
-  });
 
   // Document signing route
   app.post("/api/documents/:id/sign", requireAuth, async (req, res) => {
