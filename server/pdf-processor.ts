@@ -245,7 +245,7 @@ export class PDFProcessor {
         console.log('Variables replaced in DOCX, converting to PDF...');
         
         // Convert the processed DOCX to PDF using libreoffice-convert
-        const pdfBuffer = await libre.default.convert(modifiedDocxBuffer, '.pdf', undefined);
+        const pdfBuffer = await libre.default.convert(modifiedDocxBuffer, '.pdf', undefined) as Buffer;
         
         // Write the PDF to the output path
         fs.writeFileSync(outputPath, pdfBuffer);
@@ -266,12 +266,12 @@ export class PDFProcessor {
         console.log('Attempting fallback: direct DOCX to PDF conversion...');
         const libre = await import('libreoffice-convert');
         const docxBuffer = fs.readFileSync(templatePath);
-        const pdfBuffer = await libre.default.convert(docxBuffer, '.pdf', undefined);
+        const pdfBuffer = await libre.default.convert(docxBuffer, '.pdf', undefined) as Buffer;
         fs.writeFileSync(outputPath, pdfBuffer);
         console.log('Fallback conversion successful');
       } catch (fallbackError) {
         console.error('Fallback conversion also failed:', fallbackError);
-        throw new Error(`DOCX to PDF conversion failed: ${error.message}`);
+        throw new Error(`DOCX to PDF conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
   }
@@ -353,7 +353,7 @@ export class PDFProcessor {
   /**
    * Guess variable type based on name patterns
    */
-  private static guessVariableType(varName: string): string {
+  private static guessVariableType(varName: string): 'text' | 'number' | 'date' {
     const name = varName.toLowerCase();
     if (name.includes('data') || name.includes('date') || name.includes('prazo') || name.includes('vencimento')) {
       return 'date';

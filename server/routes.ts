@@ -579,13 +579,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
         } catch (pdfError) {
           console.error(`❌ PDF generation failed for document ${document.id} (${document.filename}):`, pdfError);
-          errorMessage = pdfError.message || 'Unknown error occurred during PDF generation';
+          errorMessage = pdfError instanceof Error ? pdfError.message : 'Unknown error occurred during PDF generation';
           failCount++;
           
           // Mark document as failed with detailed error information
           await storage.updateDocument(document.id, {
             status: "failed",
-            errorMessage: errorMessage
+            status: "failed"
           }, user.id);
         }
         
