@@ -1140,8 +1140,8 @@ builder.CloseFile();
       const certificatePassword = decryptPassword(certificate.encryptedPassword);
       console.log(`✅ Senha descriptografada com sucesso`);
       
-      // Preparar comando PHP para assinatura ICP-Brasil
-      const phpScriptPath = path.join(__dirname, '..', 'php-signer', 'icp-brasil-signer.php');
+      // Preparar comando PHP para assinatura digital em template
+      const phpScriptPath = path.join(__dirname, '..', 'php-signer', 'template-digital-signer.php');
       
       if (!fs.existsSync(phpScriptPath)) {
         throw new Error(`Script PHP de assinatura não encontrado: ${phpScriptPath}`);
