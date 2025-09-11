@@ -540,11 +540,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       for (const file of files) {
         try {
+          // Generate filename with "Assinado" before extension
+          // Example: Gabriel.pdf → Gabriel Assinado.pdf
+          const originalName = path.parse(file.originalname).name;
+          const extension = path.parse(file.originalname).ext;
+          const signedFilename = `${originalName} Assinado${extension}`;
+          
           // Create document record with source='upload'
           const document = await storage.createDocument({
             templateId: null, // No template for uploaded docs
             batchId: null, // No batch for individual uploads
-            filename: file.filename,
+            filename: signedFilename,
             status: 'processing',
             storageRef: file.path,
             variables: null,

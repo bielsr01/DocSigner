@@ -347,7 +347,6 @@ export default function AssinarDocumentosPage() {
                       <TableHead>Status</TableHead>
                       <TableHead>Documento</TableHead>
                       <TableHead>Enviado em</TableHead>
-                      <TableHead>Assinado em</TableHead>
                       <TableHead>Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -364,9 +363,6 @@ export default function AssinarDocumentosPage() {
                             </div>
                           </TableCell>
                           <TableCell>{formatDate(document.createdAt)}</TableCell>
-                          <TableCell>
-                            {signature?.signedAt ? formatDate(signature.signedAt) : 'N/A'}
-                          </TableCell>
                           <TableCell>
                             <Button
                               onClick={() => downloadDocument(document.id, document.filename)}
