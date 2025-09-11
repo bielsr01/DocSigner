@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 
 // Fix for __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -169,7 +170,8 @@ export class DocumentGenerator {
 
       // Verificar se PDF foi gerado
       if (!fs.existsSync(tempPdfPath)) {
-        throw new Error(`PDF não foi gerado pelo LibreOffice: ${tempPdfPath}`);
+        const engine = this.getConverterEngine();
+        throw new Error(`PDF não foi gerado pelo ${engine === ConverterEngine.ONLYOFFICE_HTTP ? 'OnlyOffice' : 'LibreOffice'}: ${tempPdfPath}`);
       }
 
       // Mover PDF para destino final
@@ -306,9 +308,9 @@ export class DocumentGenerator {
       maxRetries
     });
 
-    // Gerar nome único para o arquivo PDF de saída
+    // Gerar nome único para o arquivo PDF de saída (deve coincidir com processDocxTemplate)
     const timestamp = Date.now();
-    const outputFileName = `converted_${timestamp}.pdf`;
+    const outputFileName = `temp_${timestamp}.pdf`;
     const outputPath = path.join(outputDir, outputFileName);
 
     let retryCount = 0;
@@ -418,8 +420,8 @@ export class DocumentGenerator {
     if (jwtSecret) {
       console.log('🔐 Adicionando autenticação JWT...');
       
-      // Implementação JWT simplificada (em produção, use biblioteca like 'jsonwebtoken')
-      const jwtToken = this.createSimpleJWT(payload, jwtSecret);
+      // Implementação JWT segura usando jsonwebtoken com HS256
+      const jwtToken = this.createSecureJWT(payload, jwtSecret);
       requestBody = { ...payload, token: jwtToken };
     }
 
@@ -485,7 +487,7 @@ export class DocumentGenerator {
       let requestBody: any = payload;
       
       if (jwtSecret) {
-        const jwtToken = this.createSimpleJWT(payload, jwtSecret);
+        const jwtToken = this.createSecureJWT(payload, jwtSecret);
         requestBody = { ...payload, token: jwtToken };
       }
 
@@ -560,21 +562,26 @@ export class DocumentGenerator {
   }
 
   /**
-   * Cria JWT simples para autenticação OnlyOffice
-   * NOTA: Em produção, use biblioteca 'jsonwebtoken' ao invés desta implementação
+   * Cria JWT seguro para autenticação OnlyOffice usando jsonwebtoken
+   * Implementa HS256 corretamente conforme especificação OnlyOffice
    */
-  private static createSimpleJWT(payload: any, secret: string): string {
-    const header = { alg: 'HS256', typ: 'JWT' };
-    
-    const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
-    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    
-    const signature = crypto
-      .createHmac('sha256', secret)
-      .update(`${encodedHeader}.${encodedPayload}`)
-      .digest('base64url');
-    
-    return `${encodedHeader}.${encodedPayload}.${signature}`;
+  private static createSecureJWT(payload: any, secret: string): string {
+    // OnlyOffice espera payload no campo 'payload' quando usando JWT
+    const tokenPayload = {
+      payload: payload,
+      iss: 'document-generator',
+      aud: 'onlyoffice',
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + (5 * 60) // 5 minutos de validade
+    };
+
+    return jwt.sign(tokenPayload, secret, {
+      algorithm: 'HS256',
+      header: {
+        alg: 'HS256',
+        typ: 'JWT'
+      }
+    });
   }
 
   /**
