@@ -197,59 +197,82 @@ export class PDFProcessor {
     outputPath: string
   ): Promise<void> {
     try {
-      const mammoth = require('mammoth');
+      const libre = await import('libreoffice-convert');
       
-      // Read DOCX and convert to HTML
-      const result = await mammoth.convertToHtml({ path: templatePath });
-      let html = result.value;
+      console.log('Processing DOCX template with libreoffice-convert:', templatePath);
+      console.log('Template data:', data);
       
-      // Replace variables in HTML
-      for (const [key, value] of Object.entries(data)) {
-        const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-        html = html.replace(regex, String(value));
-      }
+      // Read the original DOCX file
+      const docxBuffer = fs.readFileSync(templatePath);
       
-      // For now, create a simple PDF with the replaced content
-      const pdfDoc = await PDFDocument.create();
-      const page = pdfDoc.addPage([612, 792]); // Letter size
+      // Create a temporary file to process with replaced variables
+      const tempDir = path.dirname(outputPath);
+      const tempDocxPath = path.join(tempDir, `temp_${Date.now()}_${path.basename(templatePath)}`);
       
-      // Extract text from HTML (simplified)
-      const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();
-      
-      // Add text to PDF (word wrap would be needed for production)
-      const lines = this.wrapText(textContent, 80);
-      let yPosition = 750;
-      
-      for (const line of lines) {
-        if (yPosition < 50) {
-          // Add new page if content is too long
-          const newPage = pdfDoc.addPage([612, 792]);
-          yPosition = 750;
-          newPage.drawText(line, {
-            x: 50,
-            y: yPosition,
-            size: 12,
-            color: rgb(0, 0, 0),
-          });
-        } else {
-          page.drawText(line, {
-            x: 50,
-            y: yPosition,
-            size: 12,
-            color: rgb(0, 0, 0),
-          });
+      try {
+        // First, extract the DOCX content and replace variables
+        const JSZip = await import('jszip');
+        const zip = await JSZip.default.loadAsync(docxBuffer);
+        
+        // Find and process document.xml (main content)
+        const docXml = await zip.file('word/document.xml')?.async('text');
+        if (docXml) {
+          let processedXml = docXml;
+          
+          // Replace variables in the XML content
+          for (const [key, value] of Object.entries(data)) {
+            const formattedValue = this.formatValue(value, this.guessVariableType(key));
+            // Handle various possible XML encodings of the template variables
+            const patterns = [
+              new RegExp(`{{\\s*${key}\\s*}}`, 'g'),
+              new RegExp(`&#x7B;&#x7B;\\s*${key}\\s*&#x7D;&#x7D;`, 'g'),
+              new RegExp(`&lt;t&gt;{{${key}}}&lt;/t&gt;`, 'g')
+            ];
+            
+            for (const pattern of patterns) {
+              processedXml = processedXml.replace(pattern, String(formattedValue));
+            }
+          }
+          
+          // Update the zip with processed content
+          zip.file('word/document.xml', processedXml);
         }
-        yPosition -= 20;
+        
+        // Generate the modified DOCX
+        const modifiedDocxBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+        fs.writeFileSync(tempDocxPath, modifiedDocxBuffer);
+        
+        console.log('Variables replaced in DOCX, converting to PDF...');
+        
+        // Convert the processed DOCX to PDF using libreoffice-convert
+        const pdfBuffer = await libre.default.convert(modifiedDocxBuffer, '.pdf', undefined);
+        
+        // Write the PDF to the output path
+        fs.writeFileSync(outputPath, pdfBuffer);
+        console.log('Successfully generated PDF from DOCX template with libreoffice-convert');
+        
+      } finally {
+        // Clean up temporary file
+        if (fs.existsSync(tempDocxPath)) {
+          fs.unlinkSync(tempDocxPath);
+        }
       }
-      
-      // Save the generated PDF
-      const pdfBytes = await pdfDoc.save();
-      fs.writeFileSync(outputPath, pdfBytes);
-      console.log('Successfully generated PDF from DOCX template');
       
     } catch (error) {
       console.error('Error generating PDF from DOCX template:', error);
-      throw error;
+      
+      // Fallback: try direct conversion without variable replacement
+      try {
+        console.log('Attempting fallback: direct DOCX to PDF conversion...');
+        const libre = await import('libreoffice-convert');
+        const docxBuffer = fs.readFileSync(templatePath);
+        const pdfBuffer = await libre.default.convert(docxBuffer, '.pdf', undefined);
+        fs.writeFileSync(outputPath, pdfBuffer);
+        console.log('Fallback conversion successful');
+      } catch (fallbackError) {
+        console.error('Fallback conversion also failed:', fallbackError);
+        throw new Error(`DOCX to PDF conversion failed: ${error.message}`);
+      }
     }
   }
 

@@ -523,8 +523,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create documents and generate PDFs
       const createdDocuments = [];
+      let successCount = 0;
+      let failCount = 0;
+      
       for (const docData of documentsToGenerate) {
         const document = await storage.createDocument(docData, user.id);
+        let documentStatus = "failed";
+        let errorMessage = "";
         
         try {
           // Generate the actual PDF file
@@ -536,8 +541,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             fs.mkdirSync(outputDir, { recursive: true });
           }
           
+          console.log(`Starting PDF generation for document: ${document.filename}`);
+          console.log(`Template: ${template.storageRef}, Output: ${outputPath}`);
+          
           // Parse variables data
           const variablesData = JSON.parse(docData.variables);
+          console.log(`Variables for ${document.filename}:`, variablesData);
           
           // Generate PDF using PDFProcessor
           await PDFProcessor.generateDocument(
@@ -546,43 +555,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
             outputPath
           );
           
+          // Verify the file was actually created
+          if (!fs.existsSync(outputPath)) {
+            throw new Error('PDF file was not created successfully');
+          }
+          
           // Update document with storage reference and mark as ready
           await storage.updateDocument(document.id, {
             storageRef: outputPath,
             status: "ready"
           }, user.id);
           
-        } catch (pdfError) {
-          console.error(`PDF generation failed for document ${document.id}:`, pdfError);
+          documentStatus = "ready";
+          successCount++;
+          console.log(`✅ PDF generation successful for: ${document.filename}`);
           
-          // Mark document as failed
+          // Create signature for automatic processing only on success
+          await storage.createSignature({
+            documentId: document.id,
+            provider: "FPDI/TCPDF",
+            status: "processing"
+          }, user.id);
+          
+        } catch (pdfError) {
+          console.error(`❌ PDF generation failed for document ${document.id} (${document.filename}):`, pdfError);
+          errorMessage = pdfError.message || 'Unknown error occurred during PDF generation';
+          failCount++;
+          
+          // Mark document as failed with detailed error information
           await storage.updateDocument(document.id, {
-            status: "failed"
+            status: "failed",
+            errorMessage: errorMessage
           }, user.id);
         }
         
-        createdDocuments.push(document);
+        createdDocuments.push({
+          ...document,
+          status: documentStatus,
+          errorMessage: errorMessage || undefined
+        });
         
-        // Log activity
+        // Log activity with accurate status
         await storage.createActivityLog({
           type: "document",
           action: batch ? "batch_generated" : "document_generated",
           refId: document.id,
-          status: "success",
-          message: batch 
-            ? `Document generation started for batch "${batch.label}"`
-            : `Document "${document.filename}" generated successfully`,
-          details: batch ? `Batch generation with ${documentsToGenerate.length} documents` : "Single document generation",
+          status: documentStatus === "ready" ? "success" : "error",
+          message: documentStatus === "ready"
+            ? (batch 
+                ? `Document generated successfully for batch "${batch.label}"`
+                : `Document "${document.filename}" generated successfully`)
+            : `Document generation failed: ${errorMessage}`,
+          details: documentStatus === "ready"
+            ? (batch ? `Batch generation with ${documentsToGenerate.length} documents` : "Single document generation")
+            : `Error details: ${errorMessage}`,
           documentName: document.filename,
           template: template.name
         }, user.id);
-        
-        // Create signature for automatic processing
-        await storage.createSignature({
-          documentId: document.id,
-          provider: "FPDI/TCPDF",
-          status: "processing"
+      }
+      
+      // Update batch completion status if applicable
+      if (batch) {
+        await storage.updateBatch(batch.id, {
+          completedDocuments: successCount.toString(),
+          status: failCount > 0 ? "partial" : "completed"
         }, user.id);
+        
+        console.log(`Batch processing complete: ${successCount} successful, ${failCount} failed`);
       }
       
       res.json({
