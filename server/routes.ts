@@ -638,7 +638,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // Document download route
+  // Document download route - serves signed PDFs when available
   app.get("/api/documents/:id/download", requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
@@ -652,41 +652,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Document file not found" });
       }
       
-      // Validate and secure the file path
-      const uploadsRoot = path.resolve(process.cwd(), 'uploads');
-      const requestedPath = path.resolve(process.cwd(), document.storageRef);
+      console.log(`📥 Download request for document ${document.id} - Status: ${document.status}, Filename: ${document.filename}`);
       
-      // Ensure the path is within uploads directory (prevent path traversal)
-      const relativePath = path.relative(uploadsRoot, requestedPath);
-      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-        console.error('Path traversal attempt detected:', document.storageRef);
-        return res.status(403).json({ error: 'Access denied' });
+      // SECURITY: Validate and secure the file path using SecurityUtils
+      let filePath: string;
+      let isSignedDocument = false;
+      
+      try {
+        filePath = SecurityUtils.validateDocumentPath(document.storageRef);
+        
+        // Verificar se arquivo existe de forma segura
+        if (!SecurityUtils.safeFileExists(document.storageRef, 'uploads')) {
+          return res.status(404).json({ error: 'File not found on disk' });
+        }
+        
+        // Determinar se estamos servindo versão assinada ou não assinada
+        isSignedDocument = document.status === 'signed';
+        
+      } catch (securityError: any) {
+        console.error('SECURITY: Path validation failed for document download:', securityError.message);
+        return res.status(403).json({ error: 'Access denied - invalid file path' });
       }
       
-      // Check if file exists
-      if (!fs.existsSync(requestedPath)) {
-        console.error('Document file not found on disk:', requestedPath);
-        return res.status(404).json({ error: 'File not found on disk' });
+      // Sanitize filename for security with signed indicator
+      let safeFilename = (document.filename || 'document.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
+      
+      // Add signed indicator to filename if document is signed
+      if (isSignedDocument && !safeFilename.includes('_signed')) {
+        const ext = path.extname(safeFilename);
+        const baseName = path.basename(safeFilename, ext);
+        safeFilename = `${baseName}_signed${ext}`;
       }
       
-      // Sanitize filename for security
-      const safeFilename = (document.filename || 'document.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
+      console.log(`📄 Serving ${isSignedDocument ? 'SIGNED' : 'NON-SIGNED'} document: ${safeFilename}`);
       
       // Set appropriate headers with security measures
       res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);  
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('X-Content-Type-Options', 'nosniff');
       
-      // Stream the file
-      const fileStream = fs.createReadStream(requestedPath);
+      // Stream the file usando SecurityUtils
+      const fileStream = SecurityUtils.safeCreateReadStream(document.storageRef, 'uploads');
       fileStream.pipe(res);
+      
+      // Log successful download
+      await storage.createActivityLog({
+        type: 'document',
+        action: 'document_downloaded',
+        refId: document.id,
+        status: 'success',
+        message: `${isSignedDocument ? 'Signed' : 'Non-signed'} document downloaded: ${document.filename}`,
+        details: `Status: ${document.status} | File: ${safeFilename}`,
+        documentName: document.filename
+      }, user.id);
+      
     } catch (error) {
       console.error('Document download error:', error);
       res.status(500).json({ error: 'Failed to download document' });
     }
   });
 
-  // Batch ZIP download route
+  // Batch ZIP download route - includes both ready and signed documents
   app.get("/api/batches/:id/download", requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
@@ -697,19 +723,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Batch not found" });
       }
       
-      // Get all documents in this batch with status 'ready'
+      // Get all documents in this batch with status 'ready' OR 'signed'
       const allDocuments = await storage.getDocuments(user.id);
       const documents = allDocuments.filter((doc: any) => doc.batchId === req.params.id);
       if (!documents || documents.length === 0) {
         return res.status(404).json({ error: "No documents found in this batch" });
       }
       
-      const readyDocuments = documents.filter((doc: any) => doc.status === 'ready' && doc.storageRef);
-      if (readyDocuments.length === 0) {
-        return res.status(400).json({ error: "No ready documents found in this batch" });
+      // Include both ready and signed documents with valid storage references
+      const downloadableDocuments = documents.filter((doc: any) => 
+        (doc.status === 'ready' || doc.status === 'signed') && doc.storageRef
+      );
+      
+      if (downloadableDocuments.length === 0) {
+        return res.status(400).json({ error: "No downloadable documents found in this batch" });
       }
       
-      console.log(`Creating ZIP for batch ${batch.id} with ${readyDocuments.length} documents`);
+      // Count documents by status for logging
+      const signedCount = downloadableDocuments.filter(doc => doc.status === 'signed').length;
+      const readyCount = downloadableDocuments.filter(doc => doc.status === 'ready').length;
+      
+      console.log(`📦 Creating ZIP for batch ${batch.id} with ${downloadableDocuments.length} documents (${signedCount} signed, ${readyCount} ready)`);
       
       // Sanitize batch label for filename
       const safeBatchLabel = (batch.label || 'Batch').replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -736,38 +770,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Pipe archive data to the response
       archive.pipe(res);
       
-      const uploadsRoot = path.resolve(process.cwd(), 'uploads');
       let filesAdded = 0;
+      let signedFilesAdded = 0;
+      let readyFilesAdded = 0;
       
       // Add each document to the ZIP
-      for (const document of readyDocuments) {
+      for (const document of downloadableDocuments) {
         try {
-          // Validate and secure the file path (prevent path traversal)
+          // SECURITY: Validate and secure the file path using SecurityUtils
           if (!document.storageRef) {
             console.error('Document has no storageRef:', document.id);
             continue;
           }
-          const requestedPath = path.resolve(process.cwd(), document.storageRef);
-          const relativePath = path.relative(uploadsRoot, requestedPath);
           
-          if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-            console.error('Path traversal attempt detected for document:', document.storageRef);
+          let validatedPath: string;
+          try {
+            validatedPath = SecurityUtils.validateDocumentPath(document.storageRef);
+            
+            // Verificar se arquivo existe de forma segura
+            if (!SecurityUtils.safeFileExists(document.storageRef, 'uploads')) {
+              console.error('Document file not found on disk:', document.storageRef);
+              continue; // Skip this file but continue with others
+            }
+          } catch (securityError: any) {
+            console.error('SECURITY: Path validation failed for document in ZIP:', securityError.message);
             continue; // Skip this file but continue with others
           }
           
-          // Check if file exists
-          if (!fs.existsSync(requestedPath)) {
-            console.error('Document file not found on disk:', requestedPath);
-            continue; // Skip this file but continue with others
+          const isSignedDocument = document.status === 'signed';
+          
+          // Sanitize filename for ZIP entry with signed indicator
+          let safeFilename = (document.filename || `document_${document.id}.pdf`).replace(/[^a-zA-Z0-9._-]/g, '_');
+          
+          // Add signed indicator to filename if document is signed
+          if (isSignedDocument && !safeFilename.includes('_signed')) {
+            const ext = path.extname(safeFilename);
+            const baseName = path.basename(safeFilename, ext);
+            safeFilename = `${baseName}_signed${ext}`;
           }
           
-          // Sanitize filename for ZIP entry
-          const safeFilename = (document.filename || `document_${document.id}.pdf`).replace(/[^a-zA-Z0-9._-]/g, '_');
+          // Add file to archive using SecurityUtils
+          const fileStream = SecurityUtils.safeCreateReadStream(document.storageRef, 'uploads');
+          archive.append(fileStream, { name: safeFilename });
           
-          // Add file to archive
-          archive.file(requestedPath, { name: safeFilename });
           filesAdded++;
-          console.log(`Added file to ZIP: ${safeFilename}`);
+          if (isSignedDocument) {
+            signedFilesAdded++;
+          } else {
+            readyFilesAdded++;
+          }
+          
+          console.log(`📄 Added ${isSignedDocument ? 'SIGNED' : 'READY'} file to ZIP: ${safeFilename}`);
           
         } catch (fileError) {
           console.error(`Error processing document ${document.id}:`, fileError);
@@ -782,7 +835,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      console.log(`ZIP creation completed. Added ${filesAdded} files to ${zipFilename}`);
+      console.log(`✅ ZIP creation completed: ${filesAdded} files added to ${zipFilename} (${signedFilesAdded} signed, ${readyFilesAdded} ready)`);
+      
+      // Log successful batch download
+      await storage.createActivityLog({
+        type: 'document',
+        action: 'batch_downloaded',
+        refId: batch.id,
+        status: 'success',
+        message: `Batch ZIP downloaded: ${batch.label} (${filesAdded} documents)`,
+        details: `Total: ${filesAdded} files | Signed: ${signedFilesAdded} | Ready: ${readyFilesAdded} | ZIP: ${zipFilename}`
+      }, user.id);
       
       // Finalize the archive (this will trigger the 'end' event)
       await archive.finalize();
