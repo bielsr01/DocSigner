@@ -4,6 +4,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { upload, getStorageRef } from "./upload";
+import { PDFProcessor } from "./pdf-processor";
 import fs from 'fs';
 import path from 'path';
 import { 
@@ -167,14 +168,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Template file is required' });
       }
       
+      // Extract variables from PDF automatically
+      let extractedVariables: string[] = [];
+      try {
+        if (req.file.mimetype === 'application/pdf') {
+          const pdfVariables = await PDFProcessor.extractVariables(req.file.path);
+          extractedVariables = pdfVariables.map(v => v.name);
+        }
+      } catch (error) {
+        console.error('Error extracting PDF variables:', error);
+        // Continue without variables if extraction fails
+      }
+      
       // Parse template data from request body
       const templateData = {
-        name: req.body.name,
-        description: req.body.description || '',
-        variables: JSON.parse(req.body.variables || '[]'),
+        name: req.body.name || path.parse(req.file.originalname).name,
+        variables: extractedVariables,
         storageRef: getStorageRef(req.file),
         originalFilename: req.file.originalname,
-        fileSize: req.file.size,
         mimeType: req.file.mimetype
       };
       
@@ -188,7 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         refId: template.id,
         status: "success",
         message: `Template "${template.name}" uploaded successfully`,
-        details: `${template.variables.length} variables detected`,
+        details: `${template.variables.length} variables detected: ${template.variables.join(', ')}`,
         template: template.name
       }, user.id);
       
@@ -471,10 +482,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Data or batchData required" });
       }
       
-      // Create documents
+      // Create documents and generate PDFs
       const createdDocuments = [];
       for (const docData of documentsToGenerate) {
         const document = await storage.createDocument(docData, user.id);
+        
+        try {
+          // Generate the actual PDF file
+          const outputDir = 'uploads/documents';
+          const outputPath = path.join(outputDir, document.filename);
+          
+          // Ensure output directory exists
+          if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+          }
+          
+          // Parse variables data
+          const variablesData = JSON.parse(docData.variables);
+          
+          // Generate PDF using PDFProcessor
+          await PDFProcessor.generateDocument(
+            template.storageRef,
+            variablesData,
+            outputPath
+          );
+          
+          // Update document with storage reference and mark as ready
+          await storage.updateDocument(document.id, {
+            storageRef: outputPath,
+            status: "ready"
+          }, user.id);
+          
+        } catch (pdfError) {
+          console.error(`PDF generation failed for document ${document.id}:`, pdfError);
+          
+          // Mark document as failed
+          await storage.updateDocument(document.id, {
+            status: "failed"
+          }, user.id);
+        }
+        
         createdDocuments.push(document);
         
         // Log activity
