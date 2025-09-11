@@ -86,13 +86,25 @@ export class DocxProcessor {
       const content = fs.readFileSync(templatePath, 'binary');
       const zip = new PizZip(content);
       
-      // Step 2: Create docxtemplater instance
+      // Step 2: Create docxtemplater instance with better error handling
       const doc = new Docxtemplater(zip, {
         paragraphLoop: true,
         linebreaks: true,
         nullGetter: () => '', // Handle missing variables
-        errorLogging: true
+        errorLogging: true,
+        delimiters: {
+          start: '{',
+          end: '}'
+        }
       });
+      
+      // Check for template errors before rendering
+      try {
+        doc.compile();
+      } catch (error) {
+        console.error('Template compilation errors:', error);
+        throw new Error(`Template has syntax errors: ${error.message}`);
+      }
       
       // Step 3: Format data according to variable types
       const formattedData: { [key: string]: string } = {};
