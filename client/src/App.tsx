@@ -53,12 +53,14 @@ function App() {
         
         if (response.ok) {
           const userData = await response.json();
+          console.log('🔄 checkAuth found authenticated user:', userData);
+          console.log('🔄 Current user state before checkAuth setUser:', user);
           setUser({
             email: userData.email,
             name: userData.name,
             role: userData.role
           });
-          console.log('User already authenticated:', userData);
+          console.log('✅ checkAuth setUser called');
         }
       } catch (error) {
         console.log('No existing session:', error);
@@ -71,8 +73,10 @@ function App() {
   }, []);
   
   const handleLogin = (userData: User) => {
+    console.log('🔄 handleLogin called with:', userData);
+    console.log('🔄 Current user state before setUser:', user);
     setUser(userData);
-    console.log('User logged in:', userData);
+    console.log('✅ setUser called successfully');
   };
   
   // Custom sidebar width for document management application
@@ -97,7 +101,11 @@ function App() {
     );
   }
 
+  console.log('🔍 App render - user state:', user);
+  console.log('🔍 App render - isLoading state:', isLoading);
+
   if (!user) {
+    console.log('🚪 Rendering LoginForm because user is null');
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
@@ -107,6 +115,8 @@ function App() {
       </QueryClientProvider>
     );
   }
+
+  console.log('🏠 Rendering main app because user exists:', user);
 
   return (
     <QueryClientProvider client={queryClient}>

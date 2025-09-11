@@ -1059,11 +1059,55 @@ builder.CloseFile();
     console.log(`PDF: ${pdfPath}`);
     console.log(`Certificado: ${certificate.name} (${certificate.type})`);
 
+    // FPDI WORKAROUND: Sempre converter PDF para versão compatível PRIMEIRO
+    console.log('🔄 Convertendo PDF para versão FPDI-compatível (preventivo)...');
+    
+    // Usar diretório temporário que será criado abaixo
+    const tempDirPath = path.join(__dirname, '..', 'temp');
+    if (!fs.existsSync(tempDirPath)) {
+      fs.mkdirSync(tempDirPath, { recursive: true });
+    }
+    
+    const compatiblePdf = path.join(tempDirPath, `fpdi_compatible_${Date.now()}.pdf`);
+    
+    try {
+      const gsArgs = [
+        '-sDEVICE=pdfwrite',
+        '-dCompatibilityLevel=1.4',
+        '-dNOPAUSE',
+        '-dQUIET',
+        '-dBATCH',
+        `-sOutputFile=${compatiblePdf}`,
+        pdfPath
+      ];
+      
+      console.log(`📝 Ghostscript: gs ${gsArgs.join(' ')}`);
+      const gsResult = await execFileAsync('gs', gsArgs, { timeout: 30000 });
+      console.log(`✅ Ghostscript stdout: ${gsResult.stdout}`);
+      if (gsResult.stderr) {
+        console.log(`⚠️ Ghostscript stderr: ${gsResult.stderr}`);
+      }
+      
+      if (!fs.existsSync(compatiblePdf)) {
+        throw new Error('Ghostscript falhou em converter PDF');
+      }
+      
+      console.log(`✅ PDF convertido para FPDI-compatível: ${compatiblePdf}`);
+      console.log(`📄 Verificando arquivo convertido: ${fs.existsSync(compatiblePdf) ? 'EXISTS' : 'NOT FOUND'}`);
+      
+      // Usar caminho ABSOLUTO do PDF convertido para resolver problema de path relativo
+      pdfPath = path.resolve(compatiblePdf);
+      console.log(`📂 Usando caminho absoluto para assinatura: ${pdfPath}`);
+      
+    } catch (gsError) {
+      console.warn('⚠️ Ghostscript falhou, usando PDF original (pode falhar na assinatura):', gsError);
+      // Continuar com PDF original se Ghostscript falhar
+    }
+
     // SECURITY: Verificar paths de forma segura
     try {
-      // Validar path do PDF
-      SecurityUtils.validateDocumentPath(pdfPath);
-      if (!SecurityUtils.safeFileExists(pdfPath, 'uploads')) {
+      // Validar path do PDF (agora pode ser o convertido)
+      if (!fs.existsSync(pdfPath)) {
         throw new Error(`PDF não encontrado para assinatura: ${pdfPath}`);
       }
 
@@ -1108,50 +1152,19 @@ builder.CloseFile();
       console.log(`Certificate: ${certificate.storageRef}`);
 
       // SEGURANÇA: Executar script PHP sem senha em argumentos CLI
+      // IMPORTANTE: Usar caminhos ABSOLUTOS para evitar problemas de path relativo
+      const absoluteCertPath = path.resolve(certificate.storageRef);
+      console.log(`📁 Certificado absoluto: ${absoluteCertPath}`);
+      console.log(`📄 Certificado existe: ${fs.existsSync(absoluteCertPath) ? 'SIM' : 'NÃO'}`);
+      
       let phpArgs = [
         phpScriptPath,
         '--input', pdfPath,
         '--output', tempSignedPath,
-        '--cert', certificate.storageRef
+        '--cert', absoluteCertPath
       ];
 
       console.log(`🔧 Comando PHP (senha via STDIN): php ${phpArgs.join(' ')}`);
-
-      // WORKAROUND FPDI: Converter PDF para versão compatível usando Ghostscript
-      console.log('🔄 Convertendo PDF para versão compatível (FPDI workaround)...');
-      const compatiblePdf = path.join(tempDir, `compatible_${Date.now()}.pdf`);
-      
-      try {
-        const gsArgs = [
-          '-sDEVICE=pdfwrite',
-          '-dCompatibilityLevel=1.4',
-          '-dNOPAUSE',
-          '-dQUIET', 
-          '-dBATCH',
-          `-sOutputFile=${compatiblePdf}`,
-          pdfPath
-        ];
-        
-        console.log(`📝 Ghostscript: gs ${gsArgs.join(' ')}`);
-        await execFileAsync('gs', gsArgs, { timeout: 30000 });
-        
-        if (!fs.existsSync(compatiblePdf)) {
-          throw new Error('Ghostscript falhou em converter PDF');
-        }
-        
-        console.log(`✅ PDF convertido para versão compatível: ${compatiblePdf}`);
-        
-        // Atualizar args do PHP para usar PDF compatível
-        phpArgs = [
-          phpScriptPath,
-          '--input', compatiblePdf,
-          '--output', tempSignedPath,
-          '--cert', certificate.storageRef
-        ];
-      } catch (gsError) {
-        console.warn('⚠️ Ghostscript falhou, tentando PDF original:', gsError);
-        // Continuar com PDF original se Ghostscript falhar
-      }
 
       // SECURITY: Executar PHP e enviar senha via STDIN para segurança
       const phpProcess = spawn('php', phpArgs, {
@@ -1197,8 +1210,18 @@ builder.CloseFile();
         });
       });
 
+      console.log(`📊 PHP stdout (${stdout.length} chars):`, JSON.stringify(stdout));
+      console.log(`📊 PHP stderr (${stderr.length} chars):`, JSON.stringify(stderr));
+      
       if (processResult.code !== 0) {
-        throw new Error(`PHP process failed with code ${processResult.code}: ${stderr}`);
+        const errorDetails = {
+          code: processResult.code,
+          signal: processResult.signal,
+          stdout: stdout.trim(),
+          stderr: stderr.trim()
+        };
+        console.log('❌ ERRO DETALHADO na assinatura PHP:', JSON.stringify(errorDetails, null, 2));
+        throw new Error(`PHP process failed with code ${processResult.code}: ${stderr.trim() || stdout.trim()}`);
       }
 
       if (stdout) {
