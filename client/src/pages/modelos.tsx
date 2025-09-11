@@ -219,10 +219,10 @@ export default function ModelosPage() {
             <CardHeader className="pb-4">
               <div className="flex items-start justify-between mb-3">
                 <FileText className="w-8 h-8 text-primary flex-shrink-0" />
-                <Badge variant="secondary">{template.fileSize}</Badge>
+                <Badge variant="secondary">{template.originalFilename || 'Template'}</Badge>
               </div>
               <CardTitle className="text-lg line-clamp-2">{template.name}</CardTitle>
-              <CardDescription className="line-clamp-2">{template.description}</CardDescription>
+              <CardDescription className="line-clamp-2">Template com {template.variables.length} variáveis</CardDescription>
             </CardHeader>
             
             <CardContent className="pt-0">
