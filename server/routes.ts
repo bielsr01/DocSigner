@@ -493,7 +493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let documentsToGenerate: any[] = [];
       
       if (batchData && Array.isArray(batchData) && batchData.length > 0) {
-        // Create batch
+        // Create batch from batchData
         batch = await storage.createBatch({
           label: `Batch_${template.name}_${new Date().toISOString().split('T')[0]}`,
           templateId,
@@ -510,22 +510,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: "processing"
         }));
       } else if (data) {
-        // Single document - handle both object and array formats
-        let variablesData;
+        // Handle data parameter
         if (Array.isArray(data)) {
-          // If data is array, take first element
-          variablesData = data[0] || {};
+          if (data.length > 1) {
+            // Multiple documents in data array - create batch
+            batch = await storage.createBatch({
+              label: `Batch_${template.name}_${new Date().toISOString().split('T')[0]}`,
+              templateId,
+              totalDocuments: data.length.toString(),
+              completedDocuments: "0"
+            }, user.id);
+            
+            // Create documents for batch
+            documentsToGenerate = data.map((docData, index) => ({
+              templateId,
+              batchId: batch.id,
+              filename: `${template.name}_${index + 1}.pdf`,
+              variables: JSON.stringify(docData),
+              status: "processing"
+            }));
+          } else {
+            // Single document in array format
+            const variablesData = data[0] || {};
+            documentsToGenerate = [{
+              templateId,
+              filename: `${template.name}_${new Date().getTime()}.pdf`,
+              variables: JSON.stringify(variablesData),
+              status: "processing"
+            }];
+          }
         } else {
-          // If data is object, use directly
-          variablesData = data;
+          // Single document as object
+          documentsToGenerate = [{
+            templateId,
+            filename: `${template.name}_${new Date().getTime()}.pdf`,
+            variables: JSON.stringify(data),
+            status: "processing"
+          }];
         }
-        
-        documentsToGenerate = [{
-          templateId,
-          filename: `${template.name}_${new Date().getTime()}.pdf`,
-          variables: JSON.stringify(variablesData),
-          status: "processing"
-        }];
       } else {
         return res.status(400).json({ error: "Data or batchData required" });
       }
@@ -765,26 +787,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const safeBatchLabel = (batch.label || 'Batch').replace(/[^a-zA-Z0-9._-]/g, '_');
       const zipFilename = `${safeBatchLabel}.zip`;
       
-      // Set response headers for ZIP download
-      res.setHeader('Content-Type', 'application/zip');
-      res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
-      res.setHeader('X-Content-Type-Options', 'nosniff');
+      // Criar ZIP em arquivo temporário (mais confiável que streaming)
+      const tempZipPath = path.join(process.cwd(), 'temp', `batch_${batch.id}_${Date.now()}.zip`);
+      const zipStream = fs.createWriteStream(tempZipPath);
       
-      // Create archiver instance
+      // Create archiver instance with NO compression to avoid corruption
       const archive = archiver('zip', {
-        zlib: { level: 9 } // Maximum compression
+        zlib: { level: 0 } // No compression - store only (prevents corruption)
       });
       
       // Handle archiver errors
       archive.on('error', (err) => {
         console.error('Archive error:', err);
+        // Limpar arquivo temporário em caso de erro
+        try { fs.unlinkSync(tempZipPath); } catch {}
         if (!res.headersSent) {
           res.status(500).json({ error: 'Failed to create ZIP file' });
         }
       });
       
-      // Pipe archive data to the response
-      archive.pipe(res);
+      // Log each entry for debugging
+      archive.on('entry', (entry) => {
+        console.log(`🗂️ ZIP entry added: ${entry.name} (${entry.stats?.size || 'unknown'} bytes, CRC: ${entry.crc32?.toString(16) || 'pending'})`);
+      });
+      
+      // Pipe archive data to temp file instead of direct response
+      archive.pipe(zipStream);
       
       let filesAdded = 0;
       let signedFilesAdded = 0;
@@ -825,9 +853,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
             safeFilename = `${baseName}_signed${ext}`;
           }
           
-          // Add file to archive using SecurityUtils
-          const fileStream = SecurityUtils.safeCreateReadStream(document.storageRef, 'uploads');
-          archive.append(fileStream, { name: safeFilename });
+          // Validate source PDF file before adding to ZIP
+          if (!fs.existsSync(validatedPath)) {
+            console.error('PDF file missing at validated path:', validatedPath);
+            continue;
+          }
+          
+          const stats = fs.statSync(validatedPath);
+          if (stats.size === 0) {
+            console.error('PDF file is empty:', validatedPath);
+            continue;
+          }
+          
+          // Quick PDF magic number check (%PDF-)
+          const buffer = Buffer.alloc(5);
+          const fd = fs.openSync(validatedPath, 'r');
+          fs.readSync(fd, buffer, 0, 5, 0);
+          fs.closeSync(fd);
+          
+          if (!buffer.toString('ascii', 0, 5).startsWith('%PDF-')) {
+            console.error('File is not a valid PDF (missing %PDF- magic):', validatedPath);
+            continue;
+          }
+          
+          // Add file to archive using direct file path (binary-safe, correct CRC)
+          archive.file(validatedPath, { 
+            name: safeFilename, 
+            store: true, // Force store mode to avoid compression corruption
+            stats: stats  // Provide stats for correct CRC calculation
+          });
           
           filesAdded++;
           if (isSignedDocument) {
@@ -836,7 +890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             readyFilesAdded++;
           }
           
-          console.log(`📄 Added ${isSignedDocument ? 'SIGNED' : 'READY'} file to ZIP: ${safeFilename}`);
+          console.log(`📄 Added ${isSignedDocument ? 'SIGNED' : 'READY'} PDF to ZIP: ${safeFilename} (${stats.size} bytes)`);
           
         } catch (fileError) {
           console.error(`Error processing document ${document.id}:`, fileError);
@@ -853,18 +907,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`✅ ZIP creation completed: ${filesAdded} files added to ${zipFilename} (${signedFilesAdded} signed, ${readyFilesAdded} ready)`);
       
-      // Log successful batch download
-      await storage.createActivityLog({
-        type: 'document',
-        action: 'batch_downloaded',
-        refId: batch.id,
-        status: 'success',
-        message: `Batch ZIP downloaded: ${batch.label} (${filesAdded} documents)`,
-        details: `Total: ${filesAdded} files | Signed: ${signedFilesAdded} | Ready: ${readyFilesAdded} | ZIP: ${zipFilename}`
-      }, user.id);
+      // Finalize archive and wait for completion
+      archive.finalize();
       
-      // Finalize the archive (this will trigger the 'end' event)
-      await archive.finalize();
+      // Aguardar que o ZIP seja completamente escrito no arquivo temporário
+      zipStream.on('close', async () => {
+        try {
+          // Verificar se o arquivo ZIP foi criado corretamente
+          if (!fs.existsSync(tempZipPath)) {
+            throw new Error('ZIP file was not created');
+          }
+          
+          const zipSize = fs.statSync(tempZipPath).size;
+          console.log(`📦 ZIP file created successfully: ${tempZipPath} (${zipSize} bytes)`);
+          
+          // Set headers for atomic ZIP download
+          const downloadHeaders = {
+            'Content-Type': 'application/zip',
+            'Content-Disposition': `attachment; filename="${zipFilename}"`,
+            'X-Content-Type-Options': 'nosniff',
+            'Cache-Control': 'no-transform',
+            'Content-Encoding': 'identity'
+          };
+          
+          // Use res.sendFile for atomic operation - prevents JSON mixing with binary
+          res.sendFile(tempZipPath, { headers: downloadHeaders }, (err) => {
+            // Cleanup temp file regardless of success/error
+            try { fs.unlinkSync(tempZipPath); } catch {}
+            
+            if (err) {
+              console.error('ZIP sendFile error:', err);
+              // Do not send JSON after sendFile - response already closed
+            } else {
+              console.log(`✅ ZIP sent successfully: ${zipFilename}`);
+              
+              // Log successful batch download (async, no response writes)
+              storage.createActivityLog({
+                type: 'document',
+                action: 'batch_downloaded',
+                refId: batch.id,
+                status: 'success',
+                message: `Batch ZIP downloaded: ${batch.label} (${filesAdded} documents)`,
+                details: `Total: ${filesAdded} files | Signed: ${signedFilesAdded} | Ready: ${readyFilesAdded} | ZIP: ${zipFilename}`
+              }, user.id).catch(logError => console.error('Activity log error:', logError));
+            }
+          });
+          
+          // CRITICAL: Return immediately to prevent any additional response writes
+          return;
+          
+        } catch (error) {
+          console.error('ZIP finalization error:', error);
+          try { fs.unlinkSync(tempZipPath); } catch {}
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to finalize ZIP file' });
+          }
+        }
+      });
       
     } catch (error) {
       console.error('Batch download error:', error);
