@@ -152,39 +152,96 @@ export class SecurityUtils {
   }
 }
 
-// Chave de criptografia para senhas de certificados (use process.env em produção)
-const ENCRYPTION_KEY = process.env.CERTIFICATE_ENCRYPTION_KEY || 'your-32-char-encryption-key-here!!';
-const ALGORITHM = 'aes-256-cbc';
+// 🔒 CORREÇÃO CRÍTICA DE SEGURANÇA: Criptografia AES-256-GCM segura
+const ALGORITHM = 'aes-256-gcm';
+const IV_LENGTH = 12; // 96 bits recomendados para GCM
+const TAG_LENGTH = 16; // 128 bits auth tag
 
 /**
- * Criptografa uma senha para armazenamento seguro (reversível)
+ * Obtém chave de criptografia de 32 bytes (obrigatória)
  */
-export function encryptPassword(password: string): string {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipher(ALGORITHM, ENCRYPTION_KEY);
-  let encrypted = cipher.update(password, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return iv.toString('hex') + ':' + encrypted;
+function getEncryptionKey(): Buffer {
+  const keyEnv = process.env.CERTIFICATE_ENCRYPTION_KEY;
+  if (!keyEnv) {
+    throw new Error('CRITICAL: CERTIFICATE_ENCRYPTION_KEY environment variable is required');
+  }
+  
+  try {
+    // Tentar interpretar como base64 primeiro
+    const key = Buffer.from(keyEnv, 'base64');
+    if (key.length === 32) {
+      return key;
+    }
+  } catch (e) {
+    // Se não for base64 válido, usar hash SHA-256
+  }
+  
+  // Usar SHA-256 da string para garantir 32 bytes
+  const key = crypto.createHash('sha256').update(keyEnv, 'utf8').digest();
+  return key;
 }
 
 /**
- * Descriptografa uma senha criptografada
+ * Criptografa uma senha usando AES-256-GCM (seguro com proteção de integridade)
+ */
+export function encryptPassword(password: string): string {
+  try {
+    const key = getEncryptionKey();
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+    
+    let encrypted = cipher.update(password, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    const authTag = cipher.getAuthTag();
+    
+    // Formato: base64(iv):base64(authTag):encrypted_hex
+    return Buffer.from(iv).toString('base64') + ':' + 
+           Buffer.from(authTag).toString('base64') + ':' + 
+           encrypted;
+  } catch (error) {
+    console.error('❌ Erro ao criptografar senha:', error);
+    throw new Error('Falha na criptografia da senha do certificado');
+  }
+}
+
+/**
+ * Descriptografa uma senha usando AES-256-GCM (verificação de integridade)
  */
 export function decryptPassword(encryptedPassword: string): string {
   try {
     const parts = encryptedPassword.split(':');
-    if (parts.length !== 2) {
-      throw new Error('Formato de senha criptografada inválido');
+    if (parts.length !== 3) {
+      throw new Error('Formato de senha criptografada inválido (esperado iv:tag:ciphertext)');
     }
     
-    const iv = Buffer.from(parts[0], 'hex');
-    const encryptedText = parts[1];
-    const decipher = crypto.createDecipher(ALGORITHM, ENCRYPTION_KEY);
+    const key = getEncryptionKey();
+    const iv = Buffer.from(parts[0], 'base64');
+    const authTag = Buffer.from(parts[1], 'base64');
+    const encryptedText = parts[2];
+    
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+    
     let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
+    
     return decrypted;
   } catch (error) {
     console.error('❌ Erro ao descriptografar senha:', error);
-    throw new Error('Falha ao descriptografar senha do certificado');
+    throw new Error('Falha ao descriptografar senha do certificado - senha pode ter sido corrompida');
+  }
+}
+
+/**
+ * Valida se a chave de criptografia está configurada corretamente
+ */
+export function validateEncryptionSetup(): void {
+  try {
+    getEncryptionKey();
+    console.log('✅ Chave de criptografia configurada corretamente');
+  } catch (error) {
+    console.error('❌ CRITICAL: Configuração de criptografia inválida');
+    throw error;
   }
 }
