@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { History, FileText, Search, Filter, Eye, Clock, RefreshCw, Shield, Upload, AlertTriangle } from "lucide-react";
+import { History, FileText, Search, Filter, Eye, Clock, RefreshCw, Upload, AlertTriangle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ActivityLog } from "@shared/schema";
 
@@ -13,7 +13,6 @@ export default function HistoricoPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
 
   // Fetch activity logs from API
   const { data: history = [], isLoading, refetch } = useQuery({
@@ -21,7 +20,22 @@ export default function HistoricoPage() {
     enabled: true
   }) as { data: ActivityLog[]; isLoading: boolean; refetch: () => void };
 
+  // Filter to show only document-related events (generation, batch, uploads)
+  const relevantActions = [
+    'document_generated',
+    'batch_generated', 
+    'pdf_uploaded_signed',
+    'document_signed',
+    'document_error',
+    'signing_error'
+  ];
+  
   const filteredHistory = history.filter(item => {
+    // Only show relevant document events
+    if (!relevantActions.includes(item.action)) {
+      return false;
+    }
+    
     const matchesSearch = 
       item.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.documentName && item.documentName.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -29,23 +43,20 @@ export default function HistoricoPage() {
     
     const matchesAction = actionFilter === 'all' || item.action === actionFilter;
     const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-    const matchesType = typeFilter === 'all' || item.type === typeFilter;
     
-    return matchesSearch && matchesAction && matchesStatus && matchesType;
+    return matchesSearch && matchesAction && matchesStatus;
   });
 
   const getActionIcon = (action: string, type: string) => {
     switch (action) {
       case 'document_generated':
         return <FileText className="w-4 h-4 text-blue-500" />;
-      case 'document_signed':
-        return <FileText className="w-4 h-4 text-green-500" />;
       case 'batch_generated':
         return <RefreshCw className="w-4 h-4 text-purple-500" />;
-      case 'template_uploaded':
-        return <Upload className="w-4 h-4 text-orange-500" />;
-      case 'certificate_uploaded':
-        return <Shield className="w-4 h-4 text-indigo-500" />;
+      case 'pdf_uploaded_signed':
+        return <Upload className="w-4 h-4 text-green-500" />;
+      case 'document_signed':
+        return <FileText className="w-4 h-4 text-green-500" />;
       case 'document_error':
       case 'signing_error':
         return <AlertTriangle className="w-4 h-4 text-red-500" />;
@@ -56,46 +67,28 @@ export default function HistoricoPage() {
 
   const getActionLabel = (action: string) => {
     switch (action) {
-      case 'document_generated': return 'Documento Gerado';
+      case 'document_generated': return 'Documento Individual Gerado';
+      case 'batch_generated': return 'Lote de Documentos Gerado';
+      case 'pdf_uploaded_signed': return 'PDF Enviado e Assinado';
       case 'document_signed': return 'Documento Assinado';
-      case 'batch_generated': return 'Lote Gerado';
-      case 'template_uploaded': return 'Modelo Enviado';
-      case 'certificate_uploaded': return 'Certificado Adicionado';
-      case 'document_error': return 'Erro no Documento';
+      case 'document_error': return 'Erro no Processamento';
       case 'signing_error': return 'Erro na Assinatura';
-      case 'template_processed': return 'Modelo Processado';
-      case 'certificate_validated': return 'Certificado Validado';
       default: return action.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
   };
 
-  const getTypeBadge = (type: string) => {
-    switch (type) {
-      case 'document':
-        return <Badge variant="outline" className="text-blue-600">Documento</Badge>;
-      case 'template':
-        return <Badge variant="outline" className="text-orange-600">Template</Badge>;
-      case 'signature':
-        return <Badge variant="outline" className="text-green-600">Assinatura</Badge>;
-      case 'certificate':
-        return <Badge variant="outline" className="text-purple-600">Certificado</Badge>;
-      case 'system':
-        return <Badge variant="outline" className="text-gray-600">Sistema</Badge>;
-      default:
-        return <Badge variant="outline">{type}</Badge>;
-    }
-  };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    // Simplify status to success/error only
+    const normalizedStatus = status === 'success' ? 'success' : 'error';
+    
+    switch (normalizedStatus) {
       case 'success':
         return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Sucesso</Badge>;
       case 'error':
         return <Badge variant="destructive">Erro</Badge>;
-      case 'warning':
-        return <Badge variant="secondary">Aviso</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="destructive">Erro</Badge>; // Default to error if status is unclear
     }
   };
 
@@ -150,13 +143,13 @@ export default function HistoricoPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">Buscar</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
-                    placeholder="Buscar atividades..."
+                    placeholder="Buscar documentos..."
                     className="pl-10"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -166,36 +159,18 @@ export default function HistoricoPage() {
               </div>
               
               <div>
-                <label className="text-sm font-medium mb-2 block">Tipo</label>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger data-testid="select-type-filter">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="document">Documento</SelectItem>
-                    <SelectItem value="template">Template</SelectItem>
-                    <SelectItem value="signature">Assinatura</SelectItem>
-                    <SelectItem value="certificate">Certificado</SelectItem>
-                    <SelectItem value="system">Sistema</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium mb-2 block">Ação</label>
+                <label className="text-sm font-medium mb-2 block">Tipo de Operação</label>
                 <Select value={actionFilter} onValueChange={setActionFilter}>
                   <SelectTrigger data-testid="select-action-filter">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas</SelectItem>
-                    <SelectItem value="document_generated">Documento Gerado</SelectItem>
-                    <SelectItem value="document_signed">Documento Assinado</SelectItem>
-                    <SelectItem value="batch_generated">Lote Gerado</SelectItem>
-                    <SelectItem value="template_uploaded">Modelo Enviado</SelectItem>
-                    <SelectItem value="certificate_uploaded">Certificado Adicionado</SelectItem>
-                    <SelectItem value="document_error">Erro</SelectItem>
+                    <SelectItem value="document_generated">Documento Individual</SelectItem>
+                    <SelectItem value="batch_generated">Geração em Lote</SelectItem>
+                    <SelectItem value="pdf_uploaded_signed">PDF Enviado</SelectItem>
+                    <SelectItem value="document_error">Erros</SelectItem>
+                    <SelectItem value="signing_error">Erros de Assinatura</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -210,7 +185,6 @@ export default function HistoricoPage() {
                     <SelectItem value="all">Todos</SelectItem>
                     <SelectItem value="success">Sucesso</SelectItem>
                     <SelectItem value="error">Erro</SelectItem>
-                    <SelectItem value="warning">Aviso</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -221,17 +195,16 @@ export default function HistoricoPage() {
         {/* History Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Atividades ({filteredHistory.length})</CardTitle>
-            <CardDescription>Histórico completo de atividades do sistema</CardDescription>
+            <CardTitle>Histórico de Documentos ({filteredHistory.length})</CardTitle>
+            <CardDescription>Histórico de geração individual, lote e upload de documentos</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="border rounded-md">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Atividade</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Documento/Template</TableHead>
+                    <TableHead>Operação</TableHead>
+                    <TableHead>Documento</TableHead>
                     <TableHead>Data/Hora</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Ações</TableHead>
@@ -253,9 +226,6 @@ export default function HistoricoPage() {
                             )}
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        {getTypeBadge(item.type)}
                       </TableCell>
                       <TableCell>
                         <div>
@@ -297,9 +267,9 @@ export default function HistoricoPage() {
                   <History className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Nenhuma atividade encontrada</h3>
                   <p className="text-muted-foreground">
-                    {searchTerm || actionFilter !== 'all' || statusFilter !== 'all' || typeFilter !== 'all'
+                    {searchTerm || actionFilter !== 'all' || statusFilter !== 'all'
                       ? 'Tente ajustar os filtros' 
-                      : 'O histórico aparecerá aqui conforme você usar o sistema'}
+                      : 'O histórico aparecerá aqui conforme você gerar documentos'}
                   </p>
                 </div>
               )}
