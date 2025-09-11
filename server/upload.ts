@@ -63,8 +63,8 @@ export const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 1 // Only allow single file upload
+    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+    files: 10 // Allow up to 10 files for batch upload
   }
 });
 
