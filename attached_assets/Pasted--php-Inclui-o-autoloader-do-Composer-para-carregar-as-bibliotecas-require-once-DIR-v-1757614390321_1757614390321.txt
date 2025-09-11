@@ -1,0 +1,67 @@
+<?php
+
+// Inclui o autoloader do Composer para carregar as bibliotecas
+require_once __DIR__ . '/vendor/autoload.php';
+
+// Importa a classe FPDI
+use setasign\Fpdi\Tcpdf\Fpdi;
+
+// --- CONFIGURAÇÕES ---
+$pdfInputPath = __DIR__ . '/testejs.pdf';
+$pdfOutputPath = __DIR__ . '/documento_assinado.pdf';
+$pfxPath = __DIR__ . '/gabriel.pfx';
+$password = '12345678'; // Substitua pela sua senha real
+
+// --- FUNÇÃO DE ASSINATURA ---
+function signPdf($pdfInputPath, $pdfOutputPath, $pfxPath, $password) {
+    try {
+        // Cria uma nova instância do FPDI
+        $pdf = new Fpdi();
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        
+        // Importa o PDF original
+        $pageCount = $pdf->setSourceFile($pdfInputPath);
+        for ($i = 1; $i <= $pageCount; $i++) {
+            $tplId = $pdf->importPage($i);
+            $size = $pdf->getTemplateSize($tplId);
+            
+            // Adiciona uma nova página com as dimensões exatas da página original
+            if ($size['width'] > $size['height']) {
+                $pdf->AddPage('L', [$size['width'], $size['height']]);
+            } else {
+                $pdf->AddPage('P', [$size['width'], $size['height']]);
+            }
+            
+            // Usa o template e o posiciona para cobrir toda a página
+            $pdf->useTemplate($tplId, 0, 0, $size['width'], $size['height']);
+        }
+
+        // --- Adiciona a assinatura digital ---
+        $pfxContent = file_get_contents($pfxPath);
+
+        // Lê o certificado e a chave privada do arquivo PFX
+        if (openssl_pkcs12_read($pfxContent, $certs, $password)) {
+            $certificate = $certs['cert'];
+            $privateKey = $certs['pkey'];
+        } else {
+            throw new \Exception('Erro ao ler o certificado PFX. Senha incorreta ou arquivo inválido.');
+        }
+
+        $pdf->setSignature($certificate, $privateKey, $password, '', 2, 'Assinatura Digital');
+        
+        // Define a posição da assinatura
+        $pdf->setSignatureAppearance(50, 50, 100, 20);
+
+        // Salva o PDF assinado
+        $pdf->Output($pdfOutputPath, 'F');
+        
+        echo "\n🎉 SUCESSO! O documento foi assinado. Verifique o arquivo \"$pdfOutputPath\".\n";
+
+    } catch (\Exception $e) {
+        echo '❌ Ocorreu um erro durante a assinatura: ' . $e->getMessage() . "\n";
+    }
+}
+
+// Inicia o processo de assinatura
+signPdf($pdfInputPath, $pdfOutputPath, $pfxPath, $password);
