@@ -510,11 +510,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: "processing"
         }));
       } else if (data) {
-        // Single document
+        // Single document - handle both object and array formats
+        let variablesData;
+        if (Array.isArray(data)) {
+          // If data is array, take first element
+          variablesData = data[0] || {};
+        } else {
+          // If data is object, use directly
+          variablesData = data;
+        }
+        
         documentsToGenerate = [{
           templateId,
           filename: `${template.name}_${new Date().getTime()}.pdf`,
-          variables: JSON.stringify(data),
+          variables: JSON.stringify(variablesData),
           status: "processing"
         }];
       } else {
