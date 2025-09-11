@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { upload, getStorageRef } from "./upload";
 import { PDFProcessor } from "./pdf-processor";
+import { PDFSigner } from "./pdf-signer";
 import fs from 'fs';
 import path from 'path';
 import { 
@@ -692,6 +693,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Test generate error:", error);
       res.status(500).json({ error: "Failed to generate test document" });
+    }
+  });
+
+  // Document signing route
+  app.post("/api/documents/:id/sign", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const { certificateId, certificatePassword } = req.body;
+      
+      if (!certificateId || !certificatePassword) {
+        return res.status(400).json({ error: "Certificate ID and password are required" });
+      }
+      
+      // Get document
+      const document = await storage.getDocument(req.params.id, user.id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      if (!document.storageRef) {
+        return res.status(400).json({ error: "Document file not found" });
+      }
+      
+      // Get certificate
+      const certificate = await storage.getCertificate(certificateId, user.id);
+      if (!certificate) {
+        return res.status(404).json({ error: "Certificate not found" });
+      }
+      
+      // Create signature record
+      const signature = await storage.createSignature({
+        documentId: document.id,
+        certificateId: certificate.id,
+        provider: "signpdf",
+        status: "processing"
+      }, user.id);
+      
+      try {
+        // Sign the PDF
+        const inputPath = path.resolve(process.cwd(), document.storageRef);
+        const outputPath = path.resolve(process.cwd(), `uploads/signed/signed_${document.id}.pdf`);
+        const certificatePath = path.resolve(process.cwd(), certificate.storageRef);
+        
+        const result = await PDFSigner.signPDF(inputPath, outputPath, {
+          certificatePath,
+          certificatePassword,
+          reason: `Assinado digitalmente usando ${certificate.name}`,
+          location: "Brasil",
+          contactInfo: user.email || ""
+        });
+        
+        if (result.success && result.signedPdfPath) {
+          // Update signature as completed
+          await storage.updateSignature(signature.id, {
+            status: "completed",
+            signedAt: new Date()
+          }, user.id);
+          
+          // Update document with signed version
+          await storage.updateDocument(document.id, {
+            status: "signed",
+            storageRef: `uploads/signed/signed_${document.id}.pdf`
+          }, user.id);
+          
+          // Log activity
+          await storage.createActivityLog({
+            type: "signature",
+            action: "document_signed",
+            refId: document.id,
+            status: "success",
+            message: `Document "${document.filename}" signed successfully`,
+            details: `Using certificate "${certificate.name}"`
+          }, user.id);
+          
+          res.json({
+            message: "Document signed successfully",
+            signature,
+            signedPath: result.signedPdfPath
+          });
+          
+        } else {
+          // Update signature as failed
+          await storage.updateSignature(signature.id, {
+            status: "failed",
+            errorMessage: result.error
+          }, user.id);
+          
+          res.status(500).json({ error: result.error || "Failed to sign document" });
+        }
+        
+      } catch (signingError) {
+        console.error("Signing error:", signingError);
+        
+        // Update signature as failed
+        await storage.updateSignature(signature.id, {
+          status: "failed",
+          errorMessage: signingError instanceof Error ? signingError.message : "Signing failed"
+        }, user.id);
+        
+        res.status(500).json({ error: "PDF signing failed" });
+      }
+      
+    } catch (error) {
+      console.error("Sign document error:", error);
+      res.status(500).json({ error: "Failed to sign document" });
+    }
+  });
+
+  // PDF signature verification route
+  app.get("/api/documents/:id/verify", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      
+      const document = await storage.getDocument(req.params.id, user.id);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      if (!document.storageRef) {
+        return res.status(400).json({ error: "Document file not found" });
+      }
+      
+      const pdfPath = path.resolve(process.cwd(), document.storageRef);
+      const verification = await PDFSigner.verifySignatures(pdfPath);
+      
+      res.json({
+        document: document.filename,
+        verification
+      });
+      
+    } catch (error) {
+      console.error("Verify document error:", error);
+      res.status(500).json({ error: "Failed to verify document" });
     }
   });
 
