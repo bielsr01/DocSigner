@@ -1,0 +1,6 @@
+builder.CreateFile("docx");
+var oDocument = Api.GetDocument();
+var oParagraph = oDocument.GetElement(0);
+oParagraph.AddText("Hello World from OnlyOffice!");
+builder.SaveFile("docx", "output.docx");
+builder.CloseFile();
