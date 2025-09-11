@@ -80,7 +80,8 @@ export default function GerarDocumentosPage() {
 
   const selectedTemplateData = templates.find(t => t.id === selectedTemplate);
   const validCertificates = certificates.filter(cert => {
-    // Check if certificate is still valid
+    // Include certificates without expiry date or those still valid
+    if (!cert.validTo) return true; // Include certificates without expiry date
     const validToDate = new Date(cert.validTo);
     const now = new Date();
     return validToDate > now;
@@ -334,7 +335,7 @@ export default function GerarDocumentosPage() {
                             <div className="flex flex-col">
                               <span>{cert.name}</span>
                               <span className="text-xs text-muted-foreground">
-                                Válido até: {new Date(cert.validTo).toLocaleDateString('pt-BR')}
+                                Válido até: {cert.validTo ? new Date(cert.validTo).toLocaleDateString('pt-BR') : 'Não definido'}
                               </span>
                             </div>
                           </div>
