@@ -21,7 +21,7 @@ const execFileAsync = promisify(execFile);
 enum ConverterEngine {
   LIBREOFFICE = 'libreoffice',
   ONLYOFFICE_HTTP = 'onlyoffice-http',
-  ONLYOFFICE_BUILDER = 'onlyoffice-builder'
+  ONLYOFFICE_LOCAL = 'onlyoffice-local'
 }
 
 /**
@@ -43,8 +43,9 @@ export class DocumentGenerator {
     switch (envConverter) {
       case 'onlyoffice-http':
         return ConverterEngine.ONLYOFFICE_HTTP;
-      case 'onlyoffice-builder':
-        return ConverterEngine.ONLYOFFICE_BUILDER;
+      case 'onlyoffice-local':
+      case 'onlyoffice-builder': // Backward compatibility alias
+        return ConverterEngine.ONLYOFFICE_LOCAL;
       case 'libreoffice':
       default:
         return ConverterEngine.LIBREOFFICE;
@@ -175,7 +176,7 @@ export class DocumentGenerator {
       if (!fs.existsSync(tempPdfPath)) {
         const engine = this.getConverterEngine();
         const engineName = engine === ConverterEngine.ONLYOFFICE_HTTP ? 'OnlyOffice HTTP' : 
-                          engine === ConverterEngine.ONLYOFFICE_BUILDER ? 'OnlyOffice Builder' : 'LibreOffice';
+                          engine === ConverterEngine.ONLYOFFICE_LOCAL ? 'OnlyOffice Local' : 'LibreOffice';
         throw new Error(`PDF não foi gerado pelo ${engineName}: ${tempPdfPath}`);
       }
 
@@ -206,8 +207,8 @@ export class DocumentGenerator {
         await this.convertWithOnlyOfficeHttp(docxPath, outputDir);
         break;
       
-      case ConverterEngine.ONLYOFFICE_BUILDER:
-        await this.convertWithOnlyOfficeBuilder(docxPath, outputDir);
+      case ConverterEngine.ONLYOFFICE_LOCAL:
+        await this.convertWithOnlyOfficeLocal(docxPath, outputDir);
         break;
         
       default:
@@ -305,7 +306,7 @@ export class DocumentGenerator {
 
     // Configurações com valores padrão
     const jwtSecret = process.env.ONLYOFFICE_JWT_SECRET;
-    const timeoutMs = parseInt(process.env.ONLYOFFICE_TIMEOUT_MS || '60000');
+    const timeoutMs = parseInt(process.env.ONLYOFFICE_TIMEOUT_MS || '120000');
     const isAsync = process.env.ONLYOFFICE_ASYNC?.toLowerCase() === 'true';
     const maxRetries = parseInt(process.env.ONLYOFFICE_MAX_RETRIES || '3');
 
@@ -317,9 +318,8 @@ export class DocumentGenerator {
       maxRetries
     });
 
-    // Gerar nome único para o arquivo PDF de saída (deve coincidir com processDocxTemplate)
-    const timestamp = Date.now();
-    const outputFileName = `temp_${timestamp}.pdf`;
+    // Gerar nome do arquivo PDF de saída (DEVE coincidir com expectativa de processDocxTemplate)
+    const outputFileName = path.basename(docxPath).replace(/\.docx$/i, '.pdf');
     const outputPath = path.join(outputDir, outputFileName);
 
     let retryCount = 0;
@@ -611,79 +611,214 @@ export class DocumentGenerator {
     return errorMessages[errorCode] || `Erro OnlyOffice ${errorCode}`;
   }
 
+
   /**
-   * Converte DOCX para PDF usando OnlyOffice Document Builder (biblioteca JavaScript)
+   * Converte DOCX para PDF usando OnlyOffice Document Builder via spawn/exec (opção local)
    * 
-   * VANTAGENS DO DOCUMENT BUILDER:
-   * - ✅ Biblioteca JavaScript nativa (sem servidor externo)
-   * - ✅ Performance superior ao LibreOffice (sem fork de processo)
-   * - ✅ API programática completa para manipulação de documentos
+   * VANTAGENS DO DOCUMENT BUILDER LOCAL:
+   * - ✅ Execução local via binário nativo (sem servidor externo)
+   * - ✅ Performance superior ao LibreOffice (engine OnlyOffice otimizado)
    * - ✅ Melhor compatibilidade com DOCX (engine OnlyOffice nativo)
-   * - ✅ Zero configuração (NPM install apenas)
-   * - ✅ Execução local (sem dependências de rede)
+   * - ✅ Script .docbuilder customizável para necessidades específicas
+   * - ✅ Controle total sobre processo de conversão
    * 
-   * INSTALAÇÃO: npm install @onlyoffice/documentbuilder
-   * USO: export DOC_CONVERTER=onlyoffice-builder
+   * VARIÁVEIS DE AMBIENTE:
+   * - ONLYOFFICE_BUILDER_PATH: Path para executável docbuilder (padrão: auto-detect)
+   * - ONLYOFFICE_BUILDER_DATA_PATH: Path para dados OnlyOffice (opcional)
+   * - ONLYOFFICE_BUILDER_TIMEOUT_MS: Timeout em ms (padrão: 30000)
+   * 
+   * USO: export DOC_CONVERTER=onlyoffice-local
    */
-  private static async convertWithOnlyOfficeBuilder(docxPath: string, outputDir: string): Promise<void> {
-    console.log('📚 Usando OnlyOffice Document Builder para conversão DOCX→PDF...');
+  private static async convertWithOnlyOfficeLocal(docxPath: string, outputDir: string): Promise<void> {
+    console.log('🏠 Usando OnlyOffice Document Builder Local para conversão DOCX→PDF...');
     
+    // Configurações com valores padrão
+    const builderPath = process.env.ONLYOFFICE_BUILDER_PATH || await this.detectOnlyOfficeBuilderPath();
+    const dataPath = process.env.ONLYOFFICE_BUILDER_DATA_PATH;
+    const timeoutMs = parseInt(process.env.ONLYOFFICE_BUILDER_TIMEOUT_MS || '60000');
+
+    console.log(`📋 Configuração OnlyOffice Document Builder Local:`, {
+      builderPath: builderPath || 'auto-detect',
+      hasDataPath: !!dataPath,
+      timeoutMs
+    });
+
+    // Verificar se OnlyOffice Document Builder está disponível
+    if (!builderPath || !fs.existsSync(builderPath)) {
+      throw new Error(`OnlyOffice Document Builder não encontrado. Instale ou configure ONLYOFFICE_BUILDER_PATH. Path atual: ${builderPath}`);
+    }
+
+    // Gerar nome do arquivo PDF de saída (DEVE coincidir com expectativa de processDocxTemplate)
+    const outputFileName = path.basename(docxPath).replace(/\.docx$/i, '.pdf');
+    const outputPath = path.join(outputDir, outputFileName);
+
+    console.log(`📄 Convertendo: ${path.basename(docxPath)} → ${outputFileName}`);
+
+    // Criar script .docbuilder temporário
+    const scriptPath = await this.generateDocBuilderScript(docxPath, outputPath, dataPath);
+
     try {
-      // Importar OnlyOffice Document Builder dinamicamente
-      const docBuilder = await import('@onlyoffice/documentbuilder');
-      
-      // Gerar nome do arquivo PDF de saída (deve coincidir com processDocxTemplate)
-      const timestamp = Date.now();
-      const outputFileName = `temp_${timestamp}.pdf`;
-      const outputPath = path.join(outputDir, outputFileName);
-      
-      console.log(`📄 Convertendo: ${path.basename(docxPath)} → ${outputFileName}`);
-      
-      // Inicializar Document Builder
-      console.log('🔧 Inicializando OnlyOffice Document Builder...');
-      
-      // Abrir documento DOCX existente
-      console.log(`📂 Abrindo documento: ${docxPath}`);
-      const oDocument = docBuilder.GetDocument(docxPath);
-      
-      if (!oDocument) {
-        throw new Error('Falha ao abrir documento DOCX com OnlyOffice Document Builder');
-      }
-      
-      console.log('✅ Documento DOCX carregado com sucesso');
-      
-      // Converter para PDF e salvar
-      console.log(`💾 Salvando como PDF: ${outputPath}`);
-      const saveResult = oDocument.SaveAs(outputPath, 'pdf');
-      
-      if (!saveResult) {
-        throw new Error('Falha na conversão DOCX→PDF com OnlyOffice Document Builder');
-      }
-      
-      // Verificar se arquivo foi criado
+      // Executar OnlyOffice Document Builder via spawn/exec
+      await this.executeDocBuilderScript(builderPath, scriptPath, timeoutMs);
+
+      // Verificar se PDF foi gerado
       if (!fs.existsSync(outputPath)) {
-        throw new Error(`PDF não foi gerado: ${outputPath}`);
+        throw new Error(`PDF não foi gerado pelo OnlyOffice Document Builder: ${outputPath}`);
       }
-      
+
       const pdfStats = fs.statSync(outputPath);
-      console.log(`✅ OnlyOffice Document Builder conversão concluída: ${pdfStats.size} bytes`);
+      console.log(`✅ OnlyOffice Document Builder Local conversão concluída: ${pdfStats.size} bytes`);
+
+    } finally {
+      // Limpar script temporário
+      this.cleanupTempFiles([scriptPath]);
+    }
+  }
+
+  /**
+   * Detecta automaticamente o path do OnlyOffice Document Builder
+   */
+  private static async detectOnlyOfficeBuilderPath(): Promise<string | null> {
+    console.log('🔍 Detectando OnlyOffice Document Builder...');
+    
+    // Paths comuns onde OnlyOffice Document Builder pode estar instalado
+    const commonPaths = [
+      // Path local no projeto (se baixado)
+      path.join(__dirname, '..', 'onlyoffice-builder', 'opt', 'onlyoffice', 'documentbuilder', 'docbuilder'),
+      path.join(__dirname, '..', 'onlyoffice-builder', 'usr', 'bin', 'onlyoffice-documentbuilder'),
+      // Paths padrão do sistema
+      '/opt/onlyoffice/documentbuilder/docbuilder',
+      '/usr/bin/onlyoffice-documentbuilder',
+      '/usr/local/bin/onlyoffice-documentbuilder',
+      // Path relativo
+      './onlyoffice-builder/opt/onlyoffice/documentbuilder/docbuilder',
+      './onlyoffice-builder/usr/bin/onlyoffice-documentbuilder'
+    ];
+
+    for (const builderPath of commonPaths) {
+      console.log(`🔍 Verificando: ${builderPath}`);
       
+      try {
+        // Resolver path absoluto
+        const absolutePath = path.resolve(builderPath);
+        
+        if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
+          // Verificar se é executável (Linux/Unix)
+          try {
+            fs.accessSync(absolutePath, fs.constants.F_OK | fs.constants.X_OK);
+            console.log(`✅ OnlyOffice Document Builder detectado: ${absolutePath}`);
+            return absolutePath;
+          } catch (accessError) {
+            console.log(`⚠️ Arquivo encontrado mas não é executável: ${absolutePath}`);
+          }
+        }
+      } catch (error) {
+        // Continuar para próximo path
+      }
+    }
+
+    console.log('❌ OnlyOffice Document Builder não detectado automaticamente');
+    return null;
+  }
+
+  /**
+   * Gera script .docbuilder para conversão DOCX→PDF
+   */
+  private static async generateDocBuilderScript(
+    inputDocxPath: string, 
+    outputPdfPath: string, 
+    dataPath?: string
+  ): Promise<string> {
+    console.log('📝 Gerando script .docbuilder...');
+
+    // Converter para paths absolutos
+    const absoluteInputPath = path.resolve(inputDocxPath);
+    const absoluteOutputPath = path.resolve(outputPdfPath);
+
+    // Script .docbuilder template
+    const scriptContent = `
+// OnlyOffice Document Builder Script - Conversão DOCX→PDF
+// Gerado automaticamente pelo DocumentGenerator
+
+// Inicializar builder
+builder.OpenFile("${absoluteInputPath.replace(/\\/g, '\\\\')}");
+
+// Salvar como PDF
+builder.SaveFile("pdf", "${absoluteOutputPath.replace(/\\/g, '\\\\')}");
+
+// Fechar arquivo
+builder.CloseFile();
+    `.trim();
+
+    // Criar arquivo script temporário
+    const timestamp = Date.now();
+    const tempDir = path.join(__dirname, '..', 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const scriptPath = path.join(tempDir, `docbuilder_script_${timestamp}.docbuilder`);
+    fs.writeFileSync(scriptPath, scriptContent, 'utf8');
+
+    console.log(`📄 Script .docbuilder criado: ${scriptPath}`);
+    console.log(`📄 Conteúdo do script:\n${scriptContent}`);
+
+    return scriptPath;
+  }
+
+  /**
+   * Executa script .docbuilder usando spawn/exec
+   */
+  private static async executeDocBuilderScript(
+    builderPath: string, 
+    scriptPath: string, 
+    timeoutMs: number
+  ): Promise<void> {
+    console.log('🚀 Executando OnlyOffice Document Builder...');
+
+    const args = [scriptPath];
+    console.log(`📝 Comando: ${builderPath} ${args.join(' ')}`);
+
+    try {
+      const { stdout, stderr } = await execFileAsync(builderPath, args, {
+        timeout: timeoutMs,
+        cwd: path.dirname(builderPath) // Executar no diretório do builder
+      });
+
+      if (stdout && stdout.trim()) {
+        console.log('📤 OnlyOffice Builder stdout:', stdout.trim());
+      }
+
+      if (stderr && stderr.trim()) {
+        console.log('📤 OnlyOffice Builder stderr:', stderr.trim());
+      }
+
+      console.log('✅ OnlyOffice Document Builder executado com sucesso');
+
     } catch (error: any) {
-      console.error('❌ Erro na conversão OnlyOffice Document Builder:', error);
+      console.error('❌ Erro na execução OnlyOffice Document Builder:', {
+        code: error.code,
+        signal: error.signal,
+        stdout: error.stdout,
+        stderr: error.stderr,
+        message: error.message
+      });
+
+      // Mensagens de erro específicas baseadas no tipo de erro
+      let errorMessage = 'Falha na execução OnlyOffice Document Builder: ';
       
-      // Mensagens de erro específicas
-      let errorMessage = 'Falha na conversão DOCX→PDF com OnlyOffice Document Builder: ';
-      
-      if (error.code === 'MODULE_NOT_FOUND' && error.message.includes('@onlyoffice/documentbuilder')) {
-        errorMessage += 'Módulo @onlyoffice/documentbuilder não encontrado. Execute: npm install @onlyoffice/documentbuilder';
-      } else if (error.message.includes('GetDocument')) {
-        errorMessage += 'Falha ao abrir documento DOCX. Verifique se o arquivo está válido.';
-      } else if (error.message.includes('SaveAs')) {
-        errorMessage += 'Falha na conversão para PDF. Documento pode estar corrompido.';
+      if (error.code === 'ENOENT') {
+        errorMessage += `Executável não encontrado: ${builderPath}. Verifique a instalação do OnlyOffice Document Builder.`;
+      } else if (error.signal === 'SIGTERM') {
+        errorMessage += `Timeout na conversão (>${timeoutMs}ms). Documento muito complexo ou sistema lento.`;
+      } else if (error.code === 'EACCES') {
+        errorMessage += `Permissão negada para executar: ${builderPath}. Verifique as permissões do arquivo.`;
+      } else if (error.stderr) {
+        errorMessage += `OnlyOffice Builder error: ${error.stderr}`;
       } else {
         errorMessage += error.message;
       }
-      
+
       throw new Error(errorMessage);
     }
   }

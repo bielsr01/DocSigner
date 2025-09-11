@@ -1,0 +1,13 @@
+// Teste simples OnlyOffice Document Builder
+builder.CreateFile("docx");
+
+// Obter documento ativo
+var oDocument = Api.GetDocument();
+
+// Adicionar texto de teste
+var oParagraph = oDocument.GetElement(0);
+oParagraph.AddText("Teste OnlyOffice Document Builder Local");
+
+// Salvar como PDF
+builder.SaveFile("pdf", "/home/runner/workspace/temp/test_output.pdf");
+builder.CloseFile();
