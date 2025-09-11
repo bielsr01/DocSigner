@@ -1,109 +1,40 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { History, FileText, Search, Filter, Eye, Clock, RefreshCw } from "lucide-react";
+import { History, FileText, Search, Filter, Eye, Clock, RefreshCw, Shield, Upload, AlertTriangle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DatePickerRange } from "@/components/ui/date-range-picker";
-
-// TODO: Replace with real data
-const mockHistory = [
-  {
-    id: '1',
-    action: 'document_generated',
-    description: 'Documento "Certificado_Joao_Silva.pdf" gerado com sucesso',
-    documentName: 'Certificado_Joao_Silva.pdf',
-    template: 'Certificado de Conclusão',
-    user: 'João Silva',
-    timestamp: '2024-01-15T10:30:00',
-    status: 'success',
-    details: 'Geração individual manual'
-  },
-  {
-    id: '2',
-    action: 'document_signed',
-    description: 'Documento "Certificado_Joao_Silva.pdf" assinado digitalmente',
-    documentName: 'Certificado_Joao_Silva.pdf',
-    template: 'Certificado de Conclusão',
-    user: 'João Silva',
-    timestamp: '2024-01-15T10:32:00',
-    status: 'success',
-    details: 'Assinatura com certificado A3'
-  },
-  {
-    id: '3',
-    action: 'batch_generated',
-    description: 'Lote de 25 documentos gerado (batch_001)',
-    documentName: 'batch_001',
-    template: 'Certificado de Conclusão',
-    user: 'Maria Santos',
-    timestamp: '2024-01-15T09:15:00',
-    status: 'success',
-    details: 'Geração em lote via CSV'
-  },
-  {
-    id: '4',
-    action: 'template_uploaded',
-    description: 'Novo modelo "Contrato de Prestação" enviado',
-    documentName: 'Contrato_Prestacao.docx',
-    template: 'Contrato de Prestação',
-    user: 'Admin',
-    timestamp: '2024-01-14T16:20:00',
-    status: 'success',
-    details: '5 variáveis detectadas'
-  },
-  {
-    id: '5',
-    action: 'certificate_uploaded',
-    description: 'Certificado digital "Empresa LTDA" adicionado',
-    documentName: null,
-    template: null,
-    user: 'João Silva',
-    timestamp: '2024-01-14T14:30:00',
-    status: 'success',
-    details: 'Certificado A3 válido até 2025'
-  },
-  {
-    id: '6',
-    action: 'document_error',
-    description: 'Erro na geração do documento "Declaracao_Pedro.pdf"',
-    documentName: 'Declaracao_Pedro.pdf',
-    template: 'Declaração de Participação',
-    user: 'Ana Costa',
-    timestamp: '2024-01-13T11:45:00',
-    status: 'error',
-    details: 'Variável {{DATA_EVENTO}} não preenchida'
-  }
-];
+import type { ActivityLog } from "@shared/schema";
 
 export default function HistoricoPage() {
-  const [history] = useState(mockHistory);
   const [searchTerm, setSearchTerm] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
+  const [typeFilter, setTypeFilter] = useState('all');
+
+  // Fetch activity logs from API
+  const { data: history = [], isLoading, refetch } = useQuery({
+    queryKey: ['/api/activity'],
+    enabled: true
+  }) as { data: ActivityLog[]; isLoading: boolean; refetch: () => void };
 
   const filteredHistory = history.filter(item => {
     const matchesSearch = 
-      item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.documentName && item.documentName.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.template && item.template.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesAction = actionFilter === 'all' || item.action === actionFilter;
     const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-    let matchesDate = true;
-    if (dateRange.from && dateRange.to) {
-      const itemDate = new Date(item.timestamp);
-      matchesDate = itemDate >= dateRange.from && itemDate <= dateRange.to;
-    }
+    const matchesType = typeFilter === 'all' || item.type === typeFilter;
     
-    return matchesSearch && matchesAction && matchesStatus && matchesDate;
+    return matchesSearch && matchesAction && matchesStatus && matchesType;
   });
 
-  
-  const getActionIcon = (action: string) => {
+  const getActionIcon = (action: string, type: string) => {
     switch (action) {
       case 'document_generated':
         return <FileText className="w-4 h-4 text-blue-500" />;
@@ -112,11 +43,12 @@ export default function HistoricoPage() {
       case 'batch_generated':
         return <RefreshCw className="w-4 h-4 text-purple-500" />;
       case 'template_uploaded':
-        return <FileText className="w-4 h-4 text-orange-500" />;
+        return <Upload className="w-4 h-4 text-orange-500" />;
       case 'certificate_uploaded':
-        return <FileText className="w-4 h-4 text-indigo-500" />;
+        return <Shield className="w-4 h-4 text-indigo-500" />;
       case 'document_error':
-        return <FileText className="w-4 h-4 text-red-500" />;
+      case 'signing_error':
+        return <AlertTriangle className="w-4 h-4 text-red-500" />;
       default:
         return <History className="w-4 h-4 text-gray-500" />;
     }
@@ -130,7 +62,27 @@ export default function HistoricoPage() {
       case 'template_uploaded': return 'Modelo Enviado';
       case 'certificate_uploaded': return 'Certificado Adicionado';
       case 'document_error': return 'Erro no Documento';
-      default: return action;
+      case 'signing_error': return 'Erro na Assinatura';
+      case 'template_processed': return 'Modelo Processado';
+      case 'certificate_validated': return 'Certificado Validado';
+      default: return action.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+  };
+
+  const getTypeBadge = (type: string) => {
+    switch (type) {
+      case 'document':
+        return <Badge variant="outline" className="text-blue-600">Documento</Badge>;
+      case 'template':
+        return <Badge variant="outline" className="text-orange-600">Template</Badge>;
+      case 'signature':
+        return <Badge variant="outline" className="text-green-600">Assinatura</Badge>;
+      case 'certificate':
+        return <Badge variant="outline" className="text-purple-600">Certificado</Badge>;
+      case 'system':
+        return <Badge variant="outline" className="text-gray-600">Sistema</Badge>;
+      default:
+        return <Badge variant="outline">{type}</Badge>;
     }
   };
 
@@ -153,13 +105,26 @@ export default function HistoricoPage() {
 
   const handleRefresh = () => {
     console.log('Refreshing history...');
-    // TODO: Implement actual refresh from server
+    refetch();
   };
 
   const handleViewDetails = (historyId: string) => {
     console.log('Viewing details for history item:', historyId);
     // TODO: Implement details modal
   };
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center py-12">
+            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Carregando histórico...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -201,6 +166,23 @@ export default function HistoricoPage() {
               </div>
               
               <div>
+                <label className="text-sm font-medium mb-2 block">Tipo</label>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger data-testid="select-type-filter">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="document">Documento</SelectItem>
+                    <SelectItem value="template">Template</SelectItem>
+                    <SelectItem value="signature">Assinatura</SelectItem>
+                    <SelectItem value="certificate">Certificado</SelectItem>
+                    <SelectItem value="system">Sistema</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
                 <label className="text-sm font-medium mb-2 block">Ação</label>
                 <Select value={actionFilter} onValueChange={setActionFilter}>
                   <SelectTrigger data-testid="select-action-filter">
@@ -232,16 +214,6 @@ export default function HistoricoPage() {
                   </SelectContent>
                 </Select>
               </div>
-              
-              
-              <div>
-                <label className="text-sm font-medium mb-2 block">Período</label>
-                <DatePickerRange
-                  value={dateRange}
-                  onChange={setDateRange}
-                  placeholder="Selecionar período"
-                />
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -258,6 +230,7 @@ export default function HistoricoPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Atividade</TableHead>
+                    <TableHead>Tipo</TableHead>
                     <TableHead>Documento/Template</TableHead>
                     <TableHead>Data/Hora</TableHead>
                     <TableHead>Status</TableHead>
@@ -270,16 +243,19 @@ export default function HistoricoPage() {
                       <TableCell>
                         <div className="flex items-start gap-3">
                           <div className="mt-0.5">
-                            {getActionIcon(item.action)}
+                            {getActionIcon(item.action, item.type)}
                           </div>
                           <div>
                             <p className="font-medium">{getActionLabel(item.action)}</p>
-                            <p className="text-sm text-muted-foreground">{item.description}</p>
+                            <p className="text-sm text-muted-foreground">{item.message}</p>
                             {item.details && (
                               <p className="text-xs text-muted-foreground mt-1">{item.details}</p>
                             )}
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {getTypeBadge(item.type)}
                       </TableCell>
                       <TableCell>
                         <div>
@@ -289,12 +265,15 @@ export default function HistoricoPage() {
                           {item.template && (
                             <p className="text-sm text-muted-foreground">{item.template}</p>
                           )}
+                          {!item.documentName && !item.template && (
+                            <span className="text-sm text-muted-foreground">N/A</span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-sm">{formatDateTime(item.timestamp)}</span>
+                          <span className="text-sm">{formatDateTime(item.createdAt)}</span>
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(item.status)}</TableCell>
@@ -318,7 +297,7 @@ export default function HistoricoPage() {
                   <History className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Nenhuma atividade encontrada</h3>
                   <p className="text-muted-foreground">
-                    {searchTerm || actionFilter !== 'all' || statusFilter !== 'all'
+                    {searchTerm || actionFilter !== 'all' || statusFilter !== 'all' || typeFilter !== 'all'
                       ? 'Tente ajustar os filtros' 
                       : 'O histórico aparecerá aqui conforme você usar o sistema'}
                   </p>
