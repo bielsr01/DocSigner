@@ -107,6 +107,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create session
       req.session.userId = user.id;
+      console.log('Login successful - Session created for user:', user.id, 'Session ID:', req.sessionID);
+      console.log('Session data:', req.session);
       
       // Remove password from response
       const { passwordHash, ...userWithoutPassword } = user;
@@ -135,11 +137,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/auth/me", async (req, res) => {
     try {
+      console.log('Check auth - Session ID:', req.sessionID);
+      console.log('Check auth - Session data:', req.session);
+      console.log('Check auth - userId in session:', req.session.userId);
+      
       const user = await getCurrentUser(req);
       if (!user) {
+        console.log('No user found in session');
         return res.status(401).json({ error: 'Not authenticated' });
       }
       
+      console.log('User authenticated:', user.email);
       const { passwordHash, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error) {
