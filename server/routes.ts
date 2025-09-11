@@ -515,14 +515,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { certificateId } = req.body;
       const files = req.files as Express.Multer.File[];
       
-      // Debug logging
-      console.log('🔍 Upload request debug:');
-      console.log('req.files:', files);
-      console.log('req.body:', req.body);
-      console.log('files array length:', files ? files.length : 'files is null/undefined');
       
       if (!files || files.length === 0) {
-        console.error('❌ No files uploaded - files:', files);
         return res.status(400).json({ error: 'No files uploaded' });
       }
       
@@ -559,7 +553,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             mimeType: file.mimetype
           }, user.id);
           
-          console.log(`📄 Created uploaded document: ${document.filename} (ID: ${document.id})`);
           
           // Sign the PDF immediately using the new signUploadedPDF function
           try {
@@ -592,7 +585,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 signedAt: new Date()
               }, user.id);
               
-              console.log(`✅ Successfully signed uploaded document: ${document.filename}`);
               
               // Log success activity
               await storage.createActivityLog({
