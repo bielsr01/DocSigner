@@ -5,7 +5,7 @@ import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { SecurityUtils } from './security-utils';
+import { SecurityUtils, decryptPassword } from './security-utils';
 
 // Fix for __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -1120,8 +1120,8 @@ builder.CloseFile();
       throw new Error(`SECURITY: Path validation failed - ${securityError.message}`);
     }
 
-    // Verificar se há senha para o certificado
-    if (!certificate.passwordHash) {
+    // Verificar se há senha criptografada para o certificado
+    if (!certificate.encryptedPassword) {
       throw new Error(`Certificado "${certificate.name}" não possui senha configurada para assinatura automática`);
     }
 
@@ -1135,8 +1135,10 @@ builder.CloseFile();
     const tempSignedPath = path.join(tempDir, `signed_${timestamp}.pdf`);
 
     try {
-      // Descriptografar a senha do certificado (assumindo que está em base64)
-      const certificatePassword = Buffer.from(certificate.passwordHash, 'base64').toString('utf-8');
+      // Descriptografar a senha do certificado usando nova função de criptografia
+      console.log(`🔐 Descriptografando senha do certificado...`);
+      const certificatePassword = decryptPassword(certificate.encryptedPassword);
+      console.log(`✅ Senha descriptografada com sucesso`);
       
       // Preparar comando PHP para assinatura
       const phpScriptPath = path.join(__dirname, '..', 'php-signer', 'pdf-signer.php');

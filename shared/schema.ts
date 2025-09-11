@@ -35,7 +35,8 @@ export const certificates = pgTable("certificates", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   storageRef: text("storage_ref").notNull(), // Path to encrypted certificate file
-  passwordHash: text("password_hash"), // Encrypted password for automatic signing
+  passwordHash: text("password_hash"), // Hash irreversível (deprecated)
+  encryptedPassword: text("encrypted_password"), // Senha criptografada (reversível para assinatura)
   serial: text("serial"),
   type: text("type").notNull().default("A3"), // A1, A3, etc.
   validFrom: text("valid_from"),

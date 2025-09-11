@@ -18,7 +18,7 @@ import {
 } from "@shared/schema";
 import type { User } from "@shared/schema";
 import { CertificateReader } from "./pdf-signer";
-import { SecurityUtils } from "./security-utils";
+import { SecurityUtils, encryptPassword } from "./security-utils";
 
 // Extend Express Request to include session user
 declare module 'express-session' {
@@ -341,13 +341,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Parse certificate data from request body
-      const certificateData = {
+      const certificateData: any = {
         name: req.body.name || path.parse(req.file.originalname).name,
         storageRef: getStorageRef(req.file),
         originalFilename: req.file.originalname,
         mimeType: req.file.mimetype,
         type: req.body.type || "A3"
       };
+      
+      // ✅ CORREÇÃO CRÍTICA: Criptografar e salvar senha no banco
+      if (req.body.password) {
+        console.log(`🔐 Criptografando senha do certificado...`);
+        certificateData.encryptedPassword = encryptPassword(req.body.password);
+        console.log(`✅ Senha criptografada e pronta para armazenar`);
+      }
       
       // Try to read certificate info if password provided
       if (req.body.password) {
