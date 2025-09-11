@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 
 /**
  * Utilitário para validação segura de paths e prevenção de path traversal
@@ -148,5 +149,42 @@ export class SecurityUtils {
   static safeCreateReadStream(filePath: string, allowedBaseDir?: string): fs.ReadStream {
     const validatedPath = this.validateAndNormalizePath(filePath, allowedBaseDir);
     return fs.createReadStream(validatedPath);
+  }
+}
+
+// Chave de criptografia para senhas de certificados (use process.env em produção)
+const ENCRYPTION_KEY = process.env.CERTIFICATE_ENCRYPTION_KEY || 'your-32-char-encryption-key-here!!';
+const ALGORITHM = 'aes-256-cbc';
+
+/**
+ * Criptografa uma senha para armazenamento seguro (reversível)
+ */
+export function encryptPassword(password: string): string {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipher(ALGORITHM, ENCRYPTION_KEY);
+  let encrypted = cipher.update(password, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+/**
+ * Descriptografa uma senha criptografada
+ */
+export function decryptPassword(encryptedPassword: string): string {
+  try {
+    const parts = encryptedPassword.split(':');
+    if (parts.length !== 2) {
+      throw new Error('Formato de senha criptografada inválido');
+    }
+    
+    const iv = Buffer.from(parts[0], 'hex');
+    const encryptedText = parts[1];
+    const decipher = crypto.createDecipher(ALGORITHM, ENCRYPTION_KEY);
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (error) {
+    console.error('❌ Erro ao descriptografar senha:', error);
+    throw new Error('Falha ao descriptografar senha do certificado');
   }
 }
