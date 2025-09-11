@@ -154,7 +154,7 @@ export default function CertificadosPage() {
     }
   };
 
-  const formatDate = (dateString: string | null) => {
+  const formatDate = (dateString: string | Date | null) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
@@ -293,7 +293,7 @@ export default function CertificadosPage() {
                             {getStatusBadge(certificate)}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            Criado em {formatDate(certificate.createdAt.toISOString())}
+                            Criado em {formatDate(certificate.createdAt)}
                           </div>
                         </div>
                       </div>
