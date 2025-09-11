@@ -122,6 +122,7 @@ export default function CertificadosPage() {
     
     const formData = new FormData();
     formData.append('file', uploadData.file);
+    formData.append('name', uploadData.file.name.replace(/\.(pfx|p12)$/i, ''));
     formData.append('password', uploadData.password);
     
     uploadCertificateMutation.mutate(formData);

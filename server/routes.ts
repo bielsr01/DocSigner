@@ -335,8 +335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const certificateData = {
         name: req.body.name,
         description: req.body.description || '',
-        provider: req.body.provider,
-        validUntil: new Date(req.body.validUntil),
+        type: 'A1', // Default type for uploaded certificates
         storageRef: getStorageRef(req.file),
         originalFilename: req.file.originalname,
         fileSize: req.file.size,

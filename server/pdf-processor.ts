@@ -1,6 +1,7 @@
 import { PDFDocument, PDFForm, PDFTextField, rgb } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
+import mammoth from 'mammoth';
 
 export interface PDFVariable {
   name: string;
@@ -14,45 +15,64 @@ export interface DocumentData {
 
 export class PDFProcessor {
   /**
-   * Extract variables from PDF template by scanning for {{variable}} patterns
+   * Extract variables from template by scanning for {{variable}} patterns
+   * Supports both PDF and Word documents (.docx)
    */
   static async extractVariables(filePath: string): Promise<PDFVariable[]> {
     try {
-      const pdfBytes = fs.readFileSync(filePath);
-      const pdfDoc = await PDFDocument.load(pdfBytes);
       const variables: PDFVariable[] = [];
       const foundVariables = new Set<string>();
+      const extension = path.extname(filePath).toLowerCase();
 
-      // Get form fields if they exist
-      const form = pdfDoc.getForm();
-      const fields = form.getFields();
-      
-      for (const field of fields) {
-        const fieldName = field.getName();
-        // Check if field name follows {{variable}} pattern
-        const match = fieldName.match(/^{{(.+)}}$/);
-        if (match) {
-          const varName = match[1].trim();
-          if (!foundVariables.has(varName)) {
-            foundVariables.add(varName);
-            variables.push({
-              name: varName,
-              type: this.guessVariableType(varName),
-              placeholder: `{{${varName}}}`
-            });
+      if (extension === '.pdf') {
+        // Handle PDF files
+        const pdfBytes = fs.readFileSync(filePath);
+        const pdfDoc = await PDFDocument.load(pdfBytes);
+
+        // Get form fields if they exist
+        const form = pdfDoc.getForm();
+        const fields = form.getFields();
+        
+        for (const field of fields) {
+          const fieldName = field.getName();
+          // Check if field name follows {{variable}} pattern
+          const match = fieldName.match(/^{{(.+)}}$/);
+          if (match) {
+            const varName = match[1].trim();
+            if (!foundVariables.has(varName)) {
+              foundVariables.add(varName);
+              variables.push({
+                name: varName,
+                type: this.guessVariableType(varName),
+                placeholder: `{{${varName}}}`
+              });
+            }
+          }
+        }
+      } else if (extension === '.docx') {
+        // Handle Word documents
+        const result = await mammoth.extractRawText({ path: filePath });
+        const text = result.value;
+        
+        // Find all {{variable}} patterns in the text
+        const variableMatches = text.match(/{{[^}]+}}/g);
+        
+        if (variableMatches) {
+          for (const match of variableMatches) {
+            const varName = match.replace(/[{}]/g, '').trim();
+            if (!foundVariables.has(varName)) {
+              foundVariables.add(varName);
+              variables.push({
+                name: varName,
+                type: this.guessVariableType(varName),
+                placeholder: `{{${varName}}}`
+              });
+            }
           }
         }
       }
 
-      // Also scan text content for {{variable}} patterns
-      const pages = pdfDoc.getPages();
-      for (const page of pages) {
-        // Note: pdf-lib doesn't provide direct text extraction
-        // For now, we'll rely on form fields or a simpler approach
-        // In production, you might want to use pdf-parse or similar
-      }
-
-      // If no form fields found, add common variables as examples
+      // If no variables found, add common variables as examples
       if (variables.length === 0) {
         variables.push(
           { name: 'nome', type: 'text', placeholder: '{{nome}}' },
@@ -64,8 +84,8 @@ export class PDFProcessor {
 
       return variables;
     } catch (error) {
-      console.error('Error extracting variables from PDF:', error);
-      throw new Error('Failed to extract variables from PDF');
+      console.error('Error extracting variables from template:', error);
+      throw new Error('Failed to extract variables from template');
     }
   }
 
