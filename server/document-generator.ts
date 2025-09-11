@@ -1,31 +1,30 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 
 // Fix for __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
-import * as libreoffice from 'libreoffice-convert';
-import { promisify } from 'util';
+
+// Promisify execFile for async/await usage
+const execFileAsync = promisify(execFile);
 
 /**
- * GERADOR DE DOCUMENTOS - VERSÃO CORRIGIDA
+ * GERADOR DE DOCUMENTOS - SISTEMA ROBUSTO DOCX→PDF
  * Usa template DOCX real com substituição de variáveis
  * Preserva layout original do template
- * Fallback para pdf-lib se processamento DOCX falhar
+ * SEM FALLBACK - Falha se DOCX processing não funcionar
  */
 export class DocumentGenerator {
-  /**
-   * Promisified libreoffice converter (more reliable than docx-pdf)
-   */
-  private static libreofficeConvert = promisify(libreoffice.convert);
 
   /**
    * Gera documento PDF usando template DOCX real
    * Substitui variáveis {{nome}}, {{cpf}}, etc. preservando layout
+   * FALHA se não conseguir processar DOCX (sem fallback)
    */
   static async generateDocument(
     templatePath: string,
@@ -37,31 +36,53 @@ export class DocumentGenerator {
     console.log(`Variables:`, JSON.stringify(variables, null, 2));
     console.log(`Output: ${outputPath}`);
 
-    try {
-      // TENTATIVA 1: Processar template DOCX com substituição de variáveis
-      await this.processDocxTemplate(templatePath, variables, outputPath);
-      console.log('✅ DocumentGenerator: PDF gerado com sucesso usando template DOCX!');
+    // ETAPA 1: Validar variáveis obrigatórias
+    this.validateRequiredVariables(variables);
 
-    } catch (docxError: any) {
-      console.warn('⚠️ Processamento DOCX falhou, tentando fallback...', docxError.message);
-      
-      try {
-        // FALLBACK: Usar pdf-lib como último recurso
-        await this.fallbackToPdfLib(variables, outputPath);
-        console.log('✅ DocumentGenerator: PDF gerado com sucesso usando fallback pdf-lib!');
-        
-      } catch (fallbackError: any) {
-        console.error('❌ Todos os métodos de geração falharam:', {
-          docxError: docxError.message,
-          fallbackError: fallbackError.message
-        });
-        throw new Error(`Falha completa na geração do documento: DOCX(${docxError.message}) + Fallback(${fallbackError.message})`);
-      }
-    }
+    // ETAPA 2: Processar template DOCX com substituição de variáveis
+    await this.processDocxTemplate(templatePath, variables, outputPath);
+    console.log('✅ DocumentGenerator: PDF gerado com sucesso usando template DOCX!');
   }
 
   /**
-   * Processa template DOCX com substituição de variáveis
+   * Valida que todas as variáveis obrigatórias estão presentes e não-vazias
+   */
+  private static validateRequiredVariables(variables: Record<string, any>): void {
+    const requiredKeys = ["nome", "cpf", "data_conclusao", "data_assinatura"];
+    
+    console.log('🔍 Validando variáveis obrigatórias...');
+    
+    const missingKeys: string[] = [];
+    const emptyKeys: string[] = [];
+
+    requiredKeys.forEach(key => {
+      if (!(key in variables)) {
+        missingKeys.push(key);
+      } else if (!variables[key] || String(variables[key]).trim() === '') {
+        emptyKeys.push(key);
+      }
+    });
+
+    if (missingKeys.length > 0 || emptyKeys.length > 0) {
+      let errorMessage = 'Validação de variáveis falhou:';
+      
+      if (missingKeys.length > 0) {
+        errorMessage += `\n• Variáveis ausentes: ${missingKeys.join(', ')}`;
+      }
+      
+      if (emptyKeys.length > 0) {
+        errorMessage += `\n• Variáveis vazias: ${emptyKeys.join(', ')}`;
+      }
+
+      console.error('❌', errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    console.log('✅ Todas as variáveis obrigatórias estão presentes e válidas');
+  }
+
+  /**
+   * Processa template DOCX com substituição de variáveis e converte para PDF
    */
   private static async processDocxTemplate(
     templatePath: string,
@@ -100,156 +121,121 @@ export class DocumentGenerator {
       compression: 'DEFLATE'
     });
 
-    // Criar arquivo DOCX temporário
+    // Criar diretório temporário
     const tempDir = path.join(__dirname, '..', 'temp');
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
+      console.log(`📁 Diretório temporário criado: ${tempDir}`);
     }
 
-    const tempDocxPath = path.join(tempDir, `temp_${Date.now()}.docx`);
-    fs.writeFileSync(tempDocxPath, processedDocxBuffer);
-    console.log(`💾 DOCX temporário salvo: ${tempDocxPath}`);
+    // Criar arquivos temporários
+    const timestamp = Date.now();
+    const tempDocxPath = path.join(tempDir, `temp_${timestamp}.docx`);
+    const tempPdfPath = path.join(tempDir, `temp_${timestamp}.pdf`);
 
     try {
-      // Converter DOCX para PDF usando LibreOffice (mais confiável)
-      console.log('🔄 Convertendo DOCX para PDF usando LibreOffice...');
-      
-      const pdfBuffer = await this.libreofficeConvert(processedDocxBuffer, '.pdf', undefined);
-      fs.writeFileSync(outputPath, pdfBuffer);
-      
-      console.log(`✅ PDF gerado: ${outputPath}`);
+      // Salvar DOCX processado no disco
+      fs.writeFileSync(tempDocxPath, processedDocxBuffer);
+      console.log(`💾 DOCX temporário salvo: ${tempDocxPath}`);
+
+      // Converter DOCX para PDF usando LibreOffice via file-based conversion
+      await this.convertDocxToPdf(tempDocxPath, tempDir);
+
+      // Verificar se PDF foi gerado
+      if (!fs.existsSync(tempPdfPath)) {
+        throw new Error(`PDF não foi gerado pelo LibreOffice: ${tempPdfPath}`);
+      }
+
+      // Mover PDF para destino final
+      fs.copyFileSync(tempPdfPath, outputPath);
+      console.log(`✅ PDF gerado e salvo em: ${outputPath}`);
 
     } finally {
-      // Limpar arquivo temporário
-      try {
-        fs.unlinkSync(tempDocxPath);
-        console.log('🧹 Arquivo temporário removido');
-      } catch (cleanupError) {
-        console.warn('⚠️ Falha ao remover arquivo temporário:', cleanupError);
-      }
+      // Limpar arquivos temporários
+      this.cleanupTempFiles([tempDocxPath, tempPdfPath]);
     }
   }
 
   /**
-   * Fallback: Gera PDF usando pdf-lib (implementação atual)
+   * Converte DOCX para PDF usando LibreOffice via linha de comando
+   * File-based conversion (mais estável que buffer-based)
    */
-  private static async fallbackToPdfLib(
-    variables: Record<string, any>,
-    outputPath: string
-  ): Promise<void> {
-    console.log('🔧 Usando fallback pdf-lib...');
+  private static async convertDocxToPdf(docxPath: string, outputDir: string): Promise<void> {
+    console.log('🔄 Convertendo DOCX para PDF usando LibreOffice...');
 
-    // Criar PDF do zero usando pdf-lib (código original mantido)
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595.28, 841.89]); // A4
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-    // CABEÇALHO
-    page.drawText('CERTIFICADO DE TREINAMENTO NR12', {
-      x: 120,
-      y: 750,
-      size: 18,
-      font: boldFont,
-      color: rgb(0, 0, 0),
-    });
-
-    page.drawText('NORMA REGULAMENTADORA 12 - SEGURANÇA NO TRABALHO', {
-      x: 80,
-      y: 720,
-      size: 12,
-      font,
-      color: rgb(0.3, 0.3, 0.3),
-    });
-
-    // LINHA HORIZONTAL
-    page.drawLine({
-      start: { x: 50, y: 700 },
-      end: { x: 545, y: 700 },
-      thickness: 2,
-      color: rgb(0, 0, 0),
-    });
-
-    // DADOS DO CERTIFICADO
-    let yPosition = 650;
-    const lineHeight = 30;
-
-    const fields = [
-      { label: 'NOME COMPLETO:', value: variables.nome || 'N/A' },
-      { label: 'CPF:', value: variables.cpf || 'N/A' },
-      { label: 'DATA DE CONCLUSÃO:', value: variables.data_conclusao || 'N/A' },
-      { label: 'DATA DE ASSINATURA:', value: variables.data_assinatura || 'N/A' }
+    const sofficeCommand = 'soffice';
+    const args = [
+      '--headless',
+      '--convert-to',
+      'pdf',
+      '--outdir',
+      outputDir,
+      docxPath
     ];
 
-    fields.forEach((field, index) => {
-      // Label
-      page.drawText(field.label, {
-        x: 60,
-        y: yPosition,
-        size: 11,
-        font: boldFont,
-        color: rgb(0, 0, 0),
+    console.log(`📝 Comando LibreOffice: ${sofficeCommand} ${args.join(' ')}`);
+
+    try {
+      const { stdout, stderr } = await execFileAsync(sofficeCommand, args, {
+        timeout: 30000 // 30 segundos timeout
       });
 
-      // Valor
-      page.drawText(field.value, {
-        x: 250,
-        y: yPosition,
-        size: 11,
-        font,
-        color: rgb(0, 0, 0),
+      if (stdout) {
+        console.log('📤 LibreOffice stdout:', stdout.trim());
+      }
+
+      if (stderr) {
+        console.log('📤 LibreOffice stderr:', stderr.trim());
+      }
+
+      console.log('✅ LibreOffice conversão concluída');
+
+    } catch (error: any) {
+      console.error('❌ Erro na conversão LibreOffice:', {
+        code: error.code,
+        signal: error.signal,
+        stdout: error.stdout,
+        stderr: error.stderr,
+        message: error.message
       });
 
-      yPosition -= lineHeight;
+      // Mensagens de erro mais específicas baseadas no tipo de erro
+      let errorMessage = 'Falha na conversão DOCX→PDF: ';
+      
+      if (error.code === 'ENOENT') {
+        errorMessage += 'LibreOffice não encontrado. Instale o LibreOffice no sistema.';
+      } else if (error.signal === 'SIGTERM') {
+        errorMessage += 'Timeout na conversão (>30s). Documento muito complexo ou sistema lento.';
+      } else if (error.stderr) {
+        errorMessage += `LibreOffice error: ${error.stderr}`;
+      } else {
+        errorMessage += error.message;
+      }
+
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Remove arquivos temporários com log de limpeza
+   */
+  private static cleanupTempFiles(filePaths: string[]): void {
+    console.log('🧹 Limpando arquivos temporários...');
+    
+    let cleanedCount = 0;
+    
+    filePaths.forEach(filePath => {
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log(`🗑️ Removido: ${path.basename(filePath)}`);
+          cleanedCount++;
+        }
+      } catch (cleanupError) {
+        console.warn(`⚠️ Falha ao remover ${path.basename(filePath)}:`, cleanupError);
+      }
     });
 
-    // TEXTO DE CERTIFICAÇÃO
-    yPosition -= 20;
-    page.drawText('CERTIFICAMOS QUE O PROFISSIONAL ACIMA IDENTIFICADO', {
-      x: 60,
-      y: yPosition,
-      size: 12,
-      font: boldFont,
-      color: rgb(0, 0, 0),
-    });
-
-    yPosition -= 25;
-    page.drawText('PARTICIPOU E FOI APROVADO NO TREINAMENTO DE SEGURANÇA', {
-      x: 60,
-      y: yPosition,
-      size: 12,
-      font: boldFont,
-      color: rgb(0, 0, 0),
-    });
-
-    yPosition -= 25;
-    page.drawText('EM MÁQUINAS E EQUIPAMENTOS CONFORME NR12.', {
-      x: 60,
-      y: yPosition,
-      size: 12,
-      font: boldFont,
-      color: rgb(0, 0, 0),
-    });
-
-    // RODAPÉ
-    page.drawText('Este certificado é válido em todo território nacional.', {
-      x: 60,
-      y: 150,
-      size: 10,
-      font,
-      color: rgb(0.5, 0.5, 0.5),
-    });
-
-    page.drawText('Documento gerado automaticamente pelo sistema.', {
-      x: 60,
-      y: 130,
-      size: 10,
-      font,
-      color: rgb(0.5, 0.5, 0.5),
-    });
-
-    // SALVAR PDF
-    const pdfBytes = await pdfDoc.save();
-    await fs.promises.writeFile(outputPath, pdfBytes);
+    console.log(`✅ Limpeza concluída: ${cleanedCount} arquivos removidos`);
   }
 }
