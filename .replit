@@ -26,7 +26,7 @@ externalPort = 3001
 PORT = "5000"
 
 [workflows]
-runButton = "Project"
+runButton = "Restart System"
 
 [[workflows.workflow]]
 name = "Project"
@@ -45,6 +45,15 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Restart System"
+author = 47455704
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
 
 [agent]
 integrations = ["javascript_log_in_with_replit:1.0.0", "javascript_database:1.0.0"]
