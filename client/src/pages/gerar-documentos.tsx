@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Upload, Download, Copy, FileSpreadsheet, Type, Loader2, Plus, Trash2, Edit, RefreshCw } from "lucide-react";
+import { FileText, Upload, Download, Copy, FileSpreadsheet, Type, Loader2, Plus, Trash2, Edit, RefreshCw, FileSignature, AlertTriangle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 

@@ -144,7 +144,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       id="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="pl-10 pr-10"
+                      className="pl-10 pr-12"
                       value={loginData.password}
                       onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                       data-testid="input-password"
@@ -154,7 +154,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 h-8 w-8"
+                      className="absolute inset-y-0 right-0 flex items-center pr-1 h-8 w-8"
                       onClick={() => setShowPassword(!showPassword)}
                       data-testid="button-toggle-password"
                     >
@@ -217,7 +217,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       id="register-password"
                       type={showRegisterPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="pl-10 pr-10"
+                      className="pl-10 pr-12"
                       value={registerData.password}
                       onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
                       data-testid="input-register-password"
@@ -227,7 +227,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 h-8 w-8"
+                      className="absolute inset-y-0 right-0 flex items-center pr-1 h-8 w-8"
                       onClick={() => setShowRegisterPassword(!showRegisterPassword)}
                       data-testid="button-toggle-register-password"
                     >
@@ -248,7 +248,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       id="confirm-password"
                       type={showConfirmPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="pl-10 pr-10"
+                      className="pl-10 pr-12"
                       value={registerData.confirmPassword}
                       onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
                       data-testid="input-confirm-password"
@@ -258,7 +258,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 h-8 w-8"
+                      className="absolute inset-y-0 right-0 flex items-center pr-1 h-8 w-8"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       data-testid="button-toggle-confirm-password"
                     >
