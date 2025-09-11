@@ -14,12 +14,37 @@ import Docxtemplater from 'docxtemplater';
 const execFileAsync = promisify(execFile);
 
 /**
+ * Enum para engines de conversão DOCX→PDF disponíveis
+ */
+enum ConverterEngine {
+  LIBREOFFICE = 'libreoffice',
+  ONLYOFFICE_HTTP = 'onlyoffice-http'
+}
+
+/**
  * GERADOR DE DOCUMENTOS - SISTEMA ROBUSTO DOCX→PDF
  * Usa template DOCX real com substituição de variáveis
  * Preserva layout original do template
  * SEM FALLBACK - Falha se DOCX processing não funcionar
+ * SISTEMA PLUGGABLE: Suporta LibreOffice (atual) e OnlyOffice HTTP (futuro)
  */
 export class DocumentGenerator {
+
+  /**
+   * Determina qual engine de conversão usar baseado na variável de ambiente DOC_CONVERTER
+   * @returns Engine de conversão selecionado
+   */
+  private static getConverterEngine(): ConverterEngine {
+    const envConverter = process.env.DOC_CONVERTER?.toLowerCase();
+    
+    switch (envConverter) {
+      case 'onlyoffice-http':
+        return ConverterEngine.ONLYOFFICE_HTTP;
+      case 'libreoffice':
+      default:
+        return ConverterEngine.LIBREOFFICE;
+    }
+  }
 
   /**
    * Gera documento PDF usando template DOCX real
@@ -157,11 +182,34 @@ export class DocumentGenerator {
   }
 
   /**
-   * Converte DOCX para PDF usando LibreOffice via linha de comando
-   * File-based conversion (mais estável que buffer-based)
+   * Converte DOCX para PDF usando o engine selecionado via DOC_CONVERTER
+   * Sistema pluggable que suporta LibreOffice (padrão) e OnlyOffice HTTP (futuro)
    */
   private static async convertDocxToPdf(docxPath: string, outputDir: string): Promise<void> {
-    console.log('🔄 Convertendo DOCX para PDF usando LibreOffice...');
+    const engine = this.getConverterEngine();
+    console.log(`🔄 Convertendo DOCX para PDF usando engine: ${engine}`);
+
+    switch (engine) {
+      case ConverterEngine.LIBREOFFICE:
+        await this.convertWithLibreOffice(docxPath, outputDir);
+        break;
+      
+      case ConverterEngine.ONLYOFFICE_HTTP:
+        await this.convertWithOnlyOfficeHttp(docxPath, outputDir);
+        break;
+        
+      default:
+        throw new Error(`Engine de conversão não suportado: ${engine}`);
+    }
+  }
+
+  /**
+   * Converte DOCX para PDF usando LibreOffice via linha de comando
+   * File-based conversion (mais estável que buffer-based)
+   * ENGINE PADRÃO: Funciona local via child_process
+   */
+  private static async convertWithLibreOffice(docxPath: string, outputDir: string): Promise<void> {
+    console.log('📋 Usando LibreOffice para conversão DOCX→PDF...');
 
     const sofficeCommand = 'soffice';
     const args = [
@@ -214,6 +262,38 @@ export class DocumentGenerator {
 
       throw new Error(errorMessage);
     }
+  }
+
+  /**
+   * Converte DOCX para PDF usando OnlyOffice via API HTTP
+   * ENGINE FUTURO: Para uso com OnlyOffice Server remoto
+   * 
+   * IMPLEMENTAÇÃO FUTURA:
+   * - Enviar DOCX via HTTP POST para OnlyOffice Server
+   * - Aguardar conversão via polling ou webhook  
+   * - Baixar PDF resultante
+   * - Configurar endpoint via ONLYOFFICE_SERVER_URL env var
+   * - Implementar autenticação JWT se necessária
+   * - Timeout configurável para conversões grandes
+   * - Retry logic para falhas de rede
+   * 
+   * CONFIGURAÇÃO FUTURA:
+   * - ONLYOFFICE_SERVER_URL=https://onlyoffice.company.com
+   * - ONLYOFFICE_JWT_SECRET=secret_key
+   * - ONLYOFFICE_TIMEOUT_MS=60000
+   */
+  private static async convertWithOnlyOfficeHttp(docxPath: string, outputDir: string): Promise<void> {
+    console.log('🚧 Tentando usar OnlyOffice HTTP...');
+    
+    // TODO: Implementar integração via HTTP API quando OnlyOffice estiver disponível
+    // Estrutura planejada:
+    // 1. Ler DOCX file do disco
+    // 2. POST /api/convert com multipart/form-data
+    // 3. Poll /api/convert/status/{jobId} até completion
+    // 4. GET /api/convert/download/{jobId} para baixar PDF
+    // 5. Salvar PDF no outputDir
+    
+    throw new Error('OnlyOffice HTTP converter não implementado ainda. Use DOC_CONVERTER=libreoffice');
   }
 
   /**
