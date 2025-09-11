@@ -549,9 +549,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const variablesData = JSON.parse(docData.variables);
           console.log(`Variables for ${document.filename}:`, variablesData);
           
-          // Generate PDF using appropriate processor with fallback mechanism
+          // FORCE FALLBACK - Template has syntax errors, skip docx processing
+          console.log('FORCE FALLBACK: Skipping DocxProcessor due to known template syntax errors');
           let processorSucceeded = false;
-          if (template.mimeType?.includes('docx')) {
+          if (false && template.mimeType?.includes('docx')) {
             try {
               // Try DocxProcessor first for DOCX files
               console.log('Attempting DocxProcessor for DOCX template...');
