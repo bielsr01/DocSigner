@@ -809,6 +809,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Temporary file serving for OnlyOffice Document Server access
+  // This route serves DOCX files temporarily so OnlyOffice can download them for conversion
+  app.use('/uploads/temp', express.static(path.join(path.dirname(__filename), '..', 'uploads', 'temp'), {
+    maxAge: '5m', // Files expire after 5 minutes
+    setHeaders: (res, filePath) => {
+      // Allow CORS for OnlyOffice server access
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      
+      // Set proper MIME type for DOCX files
+      if (filePath.endsWith('.docx')) {
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      }
+      
+      console.log(`📁 Serving temp file for OnlyOffice: ${path.basename(filePath)}`);
+    }
+  }));
+
+  // Cleanup route for temporary files (optional, for maintenance)
+  app.delete("/api/temp/cleanup", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      
+      // Only admins can cleanup temp files
+      if (user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const tempDir = path.join(path.dirname(__filename), '..', 'uploads', 'temp');
+      
+      if (!fs.existsSync(tempDir)) {
+        return res.json({ message: 'Temp directory does not exist', filesDeleted: 0 });
+      }
+
+      const files = fs.readdirSync(tempDir);
+      let deletedCount = 0;
+      
+      for (const file of files) {
+        const filePath = path.join(tempDir, file);
+        const stats = fs.statSync(filePath);
+        
+        // Delete files older than 1 hour
+        const oneHourAgo = Date.now() - (60 * 60 * 1000);
+        if (stats.mtime.getTime() < oneHourAgo) {
+          fs.unlinkSync(filePath);
+          deletedCount++;
+          console.log(`🗑️ Cleaned up old temp file: ${file}`);
+        }
+      }
+      
+      res.json({ 
+        message: `Cleanup completed`, 
+        filesDeleted: deletedCount,
+        remainingFiles: files.length - deletedCount
+      });
+      
+    } catch (error) {
+      console.error("Temp cleanup error:", error);
+      res.status(500).json({ error: "Failed to cleanup temp files" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

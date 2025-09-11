@@ -3,6 +3,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import * as crypto from 'crypto';
 
 // Fix for __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -265,35 +266,333 @@ export class DocumentGenerator {
   }
 
   /**
-   * Converte DOCX para PDF usando OnlyOffice via API HTTP
-   * ENGINE FUTURO: Para uso com OnlyOffice Server remoto
+   * Converte DOCX para PDF usando OnlyOffice Document Server via API HTTP
    * 
-   * IMPLEMENTAÇÃO FUTURA:
-   * - Enviar DOCX via HTTP POST para OnlyOffice Server
-   * - Aguardar conversão via polling ou webhook  
-   * - Baixar PDF resultante
-   * - Configurar endpoint via ONLYOFFICE_SERVER_URL env var
-   * - Implementar autenticação JWT se necessária
-   * - Timeout configurável para conversões grandes
-   * - Retry logic para falhas de rede
+   * FUNCIONALIDADES IMPLEMENTADAS:
+   * - Upload DOCX para OnlyOffice Server
+   * - Conversão síncrona e assíncrona com polling
+   * - Autenticação JWT opcional
+   * - Download automático do PDF resultante
+   * - Error handling robusto para timeouts e falhas de rede
+   * - Retry logic para conversões temporariamente falhas
    * 
-   * CONFIGURAÇÃO FUTURA:
-   * - ONLYOFFICE_SERVER_URL=https://onlyoffice.company.com
-   * - ONLYOFFICE_JWT_SECRET=secret_key
-   * - ONLYOFFICE_TIMEOUT_MS=60000
+   * VARIÁVEIS DE AMBIENTE:
+   * - ONLYOFFICE_SERVER_URL: URL base do OnlyOffice Server (obrigatório)
+   * - ONLYOFFICE_JWT_SECRET: Chave secreta para JWT auth (opcional)
+   * - ONLYOFFICE_TIMEOUT_MS: Timeout em ms (padrão: 60000)
+   * - ONLYOFFICE_ASYNC: true=async com polling, false=sync (padrão: false)
+   * - ONLYOFFICE_MAX_RETRIES: Máximo de tentativas (padrão: 3)
    */
   private static async convertWithOnlyOfficeHttp(docxPath: string, outputDir: string): Promise<void> {
-    console.log('🚧 Tentando usar OnlyOffice HTTP...');
+    console.log('🌐 Usando OnlyOffice Document Server para conversão DOCX→PDF...');
     
-    // TODO: Implementar integração via HTTP API quando OnlyOffice estiver disponível
-    // Estrutura planejada:
-    // 1. Ler DOCX file do disco
-    // 2. POST /api/convert com multipart/form-data
-    // 3. Poll /api/convert/status/{jobId} até completion
-    // 4. GET /api/convert/download/{jobId} para baixar PDF
-    // 5. Salvar PDF no outputDir
+    // Validar configuração obrigatória
+    const serverUrl = process.env.ONLYOFFICE_SERVER_URL;
+    if (!serverUrl) {
+      throw new Error('ONLYOFFICE_SERVER_URL não configurado. Configure a URL do OnlyOffice Document Server.');
+    }
+
+    // Configurações com valores padrão
+    const jwtSecret = process.env.ONLYOFFICE_JWT_SECRET;
+    const timeoutMs = parseInt(process.env.ONLYOFFICE_TIMEOUT_MS || '60000');
+    const isAsync = process.env.ONLYOFFICE_ASYNC?.toLowerCase() === 'true';
+    const maxRetries = parseInt(process.env.ONLYOFFICE_MAX_RETRIES || '3');
+
+    console.log(`📋 Configuração OnlyOffice:`, {
+      serverUrl: serverUrl.replace(/\/+$/, ''), // Remove trailing slashes
+      hasJWT: !!jwtSecret,
+      timeoutMs,
+      isAsync,
+      maxRetries
+    });
+
+    // Gerar nome único para o arquivo PDF de saída
+    const timestamp = Date.now();
+    const outputFileName = `converted_${timestamp}.pdf`;
+    const outputPath = path.join(outputDir, outputFileName);
+
+    let retryCount = 0;
     
-    throw new Error('OnlyOffice HTTP converter não implementado ainda. Use DOC_CONVERTER=libreoffice');
+    while (retryCount <= maxRetries) {
+      try {
+        // Etapa 1: Fazer upload do DOCX e obter URL pública
+        const docxUrl = await this.uploadDocxToTempServer(docxPath);
+        
+        // Etapa 2: Solicitar conversão ao OnlyOffice
+        const conversionResult = await this.requestOnlyOfficeConversion(
+          docxUrl, 
+          serverUrl, 
+          jwtSecret, 
+          timeoutMs, 
+          isAsync
+        );
+        
+        // Etapa 3: Baixar PDF resultante
+        await this.downloadConvertedPdf(conversionResult.fileUrl, outputPath, timeoutMs);
+        
+        console.log(`✅ OnlyOffice conversão concluída: ${outputPath}`);
+        return;
+        
+      } catch (error: any) {
+        retryCount++;
+        console.error(`❌ Tentativa ${retryCount}/${maxRetries + 1} falhou:`, error.message);
+        
+        if (retryCount > maxRetries) {
+          throw new Error(`OnlyOffice conversão falhou após ${maxRetries + 1} tentativas: ${error.message}`);
+        }
+        
+        // Aguardar antes da próxima tentativa (exponential backoff)
+        const backoffDelay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+        console.log(`⏳ Aguardando ${backoffDelay}ms antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+      }
+    }
+  }
+
+  /**
+   * Faz upload do DOCX para um servidor temporário e retorna URL pública
+   * NOTA: Em produção, você pode usar seu próprio servidor web ou serviço de storage
+   * Para simplificar, esta implementação assume que você tem um endpoint HTTP acessível
+   */
+  private static async uploadDocxToTempServer(docxPath: string): Promise<string> {
+    console.log('📤 Fazendo upload do DOCX para servidor temporário...');
+    
+    // Ler o arquivo DOCX
+    const docxBuffer = fs.readFileSync(docxPath);
+    const fileName = `temp_${Date.now()}_${path.basename(docxPath)}`;
+    
+    // IMPLEMENTAÇÃO SIMPLIFICADA: Usar servidor HTTP local
+    // Em produção, substitua por seu serviço de upload preferido (AWS S3, etc.)
+    const localServerUrl = process.env.LOCAL_SERVER_URL || 'http://localhost:3000';
+    const uploadUrl = `${localServerUrl}/uploads/temp/${fileName}`;
+    
+    // Salvar arquivo temporariamente em pasta acessível via HTTP
+    const tempUploadDir = path.join(__dirname, '..', 'uploads', 'temp');
+    if (!fs.existsSync(tempUploadDir)) {
+      fs.mkdirSync(tempUploadDir, { recursive: true });
+    }
+    
+    const tempFilePath = path.join(tempUploadDir, fileName);
+    fs.writeFileSync(tempFilePath, docxBuffer);
+    
+    console.log(`📁 DOCX disponível em: ${uploadUrl}`);
+    return uploadUrl;
+  }
+
+  /**
+   * Solicita conversão ao OnlyOffice Document Server
+   */
+  private static async requestOnlyOfficeConversion(
+    docxUrl: string,
+    serverUrl: string,
+    jwtSecret: string | undefined,
+    timeoutMs: number,
+    isAsync: boolean
+  ): Promise<{ fileUrl: string }> {
+    console.log('🔄 Solicitando conversão ao OnlyOffice Document Server...');
+    
+    // Endpoint de conversão (versões novas usam /converter, antigas /ConvertService.ashx)
+    const conversionEndpoint = `${serverUrl.replace(/\/+$/, '')}/ConvertService.ashx`;
+    
+    // Gerar chave única para a conversão
+    const conversionKey = this.generateConversionKey();
+    
+    // Payload da requisição
+    const payload = {
+      async: isAsync,
+      filetype: 'docx',
+      key: conversionKey,
+      outputtype: 'pdf',
+      title: `converted_${Date.now()}.pdf`,
+      url: docxUrl
+    };
+
+    console.log('📝 Payload da conversão:', JSON.stringify(payload, null, 2));
+
+    // Adicionar JWT se configurado
+    let requestBody: any = payload;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+
+    if (jwtSecret) {
+      console.log('🔐 Adicionando autenticação JWT...');
+      
+      // Implementação JWT simplificada (em produção, use biblioteca like 'jsonwebtoken')
+      const jwtToken = this.createSimpleJWT(payload, jwtSecret);
+      requestBody = { ...payload, token: jwtToken };
+    }
+
+    try {
+      // Fazer requisição HTTP
+      const response = await fetch(conversionEndpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('📥 Resposta OnlyOffice:', JSON.stringify(result, null, 2));
+
+      // Verificar se houve erro
+      if (result.error !== undefined) {
+        throw new Error(`OnlyOffice API error ${result.error}: ${this.getOnlyOfficeErrorMessage(result.error)}`);
+      }
+
+      // Se conversão assíncrona, fazer polling
+      if (isAsync && result.endConvert !== true) {
+        console.log('⏳ Conversão assíncrona iniciada, fazendo polling...');
+        return await this.pollOnlyOfficeConversion(conversionEndpoint, conversionKey, jwtSecret, timeoutMs);
+      }
+
+      // Conversão síncrona ou assíncrona concluída
+      if (!result.fileUrl) {
+        throw new Error('OnlyOffice não retornou URL do arquivo convertido');
+      }
+
+      console.log('✅ Conversão OnlyOffice concluída');
+      return { fileUrl: result.fileUrl };
+
+    } catch (error: any) {
+      if (error.name === 'TimeoutError') {
+        throw new Error(`Timeout na conversão OnlyOffice (>${timeoutMs}ms)`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Faz polling para conversão assíncrona
+   */
+  private static async pollOnlyOfficeConversion(
+    conversionEndpoint: string,
+    conversionKey: string,
+    jwtSecret: string | undefined,
+    timeoutMs: number
+  ): Promise<{ fileUrl: string }> {
+    const startTime = Date.now();
+    const pollInterval = 2000; // 2 segundos entre polls
+    
+    while (Date.now() - startTime < timeoutMs) {
+      console.log('🔄 Verificando status da conversão...');
+      
+      const payload = { key: conversionKey };
+      let requestBody: any = payload;
+      
+      if (jwtSecret) {
+        const jwtToken = this.createSimpleJWT(payload, jwtSecret);
+        requestBody = { ...payload, token: jwtToken };
+      }
+
+      try {
+        const response = await fetch(conversionEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+          signal: AbortSignal.timeout(10000) // 10s timeout por poll
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.error !== undefined) {
+          throw new Error(`OnlyOffice polling error ${result.error}: ${this.getOnlyOfficeErrorMessage(result.error)}`);
+        }
+
+        if (result.endConvert === true && result.fileUrl) {
+          console.log('✅ Conversão assíncrona concluída');
+          return { fileUrl: result.fileUrl };
+        }
+
+        // Aguardar próximo poll
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        
+      } catch (error: any) {
+        console.warn('⚠️ Erro no polling, tentando novamente...', error.message);
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+    }
+    
+    throw new Error(`Timeout no polling da conversão OnlyOffice (>${timeoutMs}ms)`);
+  }
+
+  /**
+   * Baixa o PDF convertido do OnlyOffice
+   */
+  private static async downloadConvertedPdf(fileUrl: string, outputPath: string, timeoutMs: number): Promise<void> {
+    console.log(`📥 Baixando PDF convertido: ${fileUrl}`);
+    
+    try {
+      const response = await fetch(fileUrl, {
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const pdfBuffer = await response.arrayBuffer();
+      fs.writeFileSync(outputPath, Buffer.from(pdfBuffer));
+      
+      console.log(`💾 PDF salvo: ${outputPath} (${pdfBuffer.byteLength} bytes)`);
+      
+    } catch (error: any) {
+      if (error.name === 'TimeoutError') {
+        throw new Error(`Timeout no download do PDF (>${timeoutMs}ms)`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Gera chave única para conversão OnlyOffice (mínimo 12 caracteres)
+   */
+  private static generateConversionKey(): string {
+    return `conv_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+  }
+
+  /**
+   * Cria JWT simples para autenticação OnlyOffice
+   * NOTA: Em produção, use biblioteca 'jsonwebtoken' ao invés desta implementação
+   */
+  private static createSimpleJWT(payload: any, secret: string): string {
+    const header = { alg: 'HS256', typ: 'JWT' };
+    
+    const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
+    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    
+    const signature = crypto
+      .createHmac('sha256', secret)
+      .update(`${encodedHeader}.${encodedPayload}`)
+      .digest('base64url');
+    
+    return `${encodedHeader}.${encodedPayload}.${signature}`;
+  }
+
+  /**
+   * Converte códigos de erro OnlyOffice em mensagens legíveis
+   */
+  private static getOnlyOfficeErrorMessage(errorCode: number): string {
+    const errorMessages: Record<number, string> = {
+      '-1': 'Erro desconhecido',
+      '-2': 'Timeout na conversão',
+      '-3': 'Erro na conversão do documento',
+      '-4': 'Erro no download do documento de origem',
+      '-5': 'Formato de arquivo não suportado',
+      '-6': 'Documento corrompido ou inválido',
+      '-7': 'Documento protegido por senha',
+      '-8': 'Parâmetros inválidos'
+    };
+    
+    return errorMessages[errorCode] || `Erro OnlyOffice ${errorCode}`;
   }
 
   /**
