@@ -44,6 +44,7 @@ export interface IStorage {
   // Certificate methods
   getCertificates(userId: string): Promise<Certificate[]>;
   getCertificate(id: string, userId: string): Promise<Certificate | undefined>;
+  getFirstActiveCertificate(userId: string): Promise<Certificate | undefined>;
   createCertificate(certificate: InsertCertificate, userId: string): Promise<Certificate>;
   updateCertificate(id: string, certificate: Partial<InsertCertificate>, userId: string): Promise<Certificate | undefined>;
   deleteCertificate(id: string, userId: string): Promise<boolean>;
@@ -135,6 +136,71 @@ export class DatabaseStorage implements IStorage {
   async getCertificate(id: string, userId: string): Promise<Certificate | undefined> {
     const result = await db.select().from(certificates).where(and(eq(certificates.id, id), eq(certificates.userId, userId))).limit(1);
     return result[0];
+  }
+
+  async getFirstActiveCertificate(userId: string): Promise<Certificate | undefined> {
+    // Buscar todos os certificados do usuário que têm dados de validade
+    const allCertificates = await db.select().from(certificates)
+      .where(eq(certificates.userId, userId))
+      .orderBy(desc(certificates.createdAt));
+    
+    // Filtrar certificados válidos baseado em validFrom/validTo
+    const now = new Date();
+    const validCertificates = allCertificates.filter(cert => {
+      // Verificar se campos de validade estão preenchidos
+      if (!cert.validFrom || !cert.validTo) {
+        console.log(`⚠️ Certificado "${cert.name}" não possui dados de validade completos`);
+        return false;
+      }
+      
+      try {
+        // Parsear datas de validade
+        const validFrom = new Date(cert.validFrom);
+        const validTo = new Date(cert.validTo);
+        
+        // Verificar se as datas são válidas
+        if (isNaN(validFrom.getTime()) || isNaN(validTo.getTime())) {
+          console.log(`⚠️ Certificado "${cert.name}" possui datas de validade inválidas`);
+          return false;
+        }
+        
+        // Verificar se certificado está dentro do período de validade
+        const isValid = now >= validFrom && now <= validTo;
+        
+        if (!isValid) {
+          if (now < validFrom) {
+            console.log(`⚠️ Certificado "${cert.name}" ainda não é válido (válido a partir de ${validFrom.toISOString()})`);
+          } else {
+            console.log(`⚠️ Certificado "${cert.name}" expirado (válido até ${validTo.toISOString()})`);
+          }
+        } else {
+          console.log(`✅ Certificado "${cert.name}" válido (expires ${validTo.toISOString()})`);
+        }
+        
+        return isValid;
+        
+      } catch (dateError) {
+        console.error(`❌ Erro ao parsear datas de validade do certificado "${cert.name}":`, dateError);
+        return false;
+      }
+    });
+    
+    if (validCertificates.length === 0) {
+      console.log('⚠️ Nenhum certificado válido encontrado para o usuário');
+      return undefined;
+    }
+    
+    // Ordenar por data de expiração (certificados que expiram primeiro têm prioridade)
+    validCertificates.sort((a, b) => {
+      const aValidTo = new Date(a.validTo!);
+      const bValidTo = new Date(b.validTo!);
+      return aValidTo.getTime() - bValidTo.getTime();
+    });
+    
+    const selectedCert = validCertificates[0];
+    console.log(`✅ Certificado selecionado: "${selectedCert.name}" (expires ${selectedCert.validTo})`);
+    
+    return selectedCert;
   }
 
   async createCertificate(certificate: InsertCertificate, userId: string): Promise<Certificate> {

@@ -93,23 +93,50 @@ class PdfSigner {
 
 // --- INTERFACE CLI ---
 if (php_sapi_name() === 'cli') {
-    // Processa argumentos da linha de comando
-    $options = getopt('i:o:c:p:', ['input:', 'output:', 'cert:', 'password:']);
+    // Processa argumentos da linha de comando (SEM senha por segurança)
+    $options = getopt('i:o:c:', ['input:', 'output:', 'cert:']);
     
     $inputPdf = $options['i'] ?? $options['input'] ?? null;
     $outputPdf = $options['o'] ?? $options['output'] ?? null;
     $certPath = $options['c'] ?? $options['cert'] ?? null;
-    $password = $options['p'] ?? $options['password'] ?? null;
     
-    if (!$inputPdf || !$outputPdf || !$certPath || !$password) {
-        echo "Uso: php pdf-signer.php -i <input.pdf> -o <output.pdf> -c <certificate.pfx> -p <password>\n";
-        echo "Ou:  php pdf-signer.php --input=<input.pdf> --output=<output.pdf> --cert=<certificate.pfx> --password=<password>\n";
+    if (!$inputPdf || !$outputPdf || !$certPath) {
+        echo "Uso: php pdf-signer.php -i <input.pdf> -o <output.pdf> -c <certificate.pfx>\n";
+        echo "Ou:  php pdf-signer.php --input=<input.pdf> --output=<output.pdf> --cert=<certificate.pfx>\n";
+        echo "IMPORTANTE: A senha do certificado deve ser fornecida via STDIN por motivos de segurança.\n";
+        exit(1);
+    }
+    
+    // SEGURANÇA CRÍTICA: Lê senha via STDIN para evitar exposição em logs de processo
+    // Detectar se está em modo interativo (TTY) ou automatizado (pipe/spawn)
+    $isInteractive = function_exists('posix_isatty') ? posix_isatty(STDIN) : false;
+    
+    if ($isInteractive) {
+        echo "🔐 Digite a senha do certificado: ";
+    }
+    
+    $handle = fopen("php://stdin", "r");
+    if ($handle === false) {
+        echo "❌ ERRO: Não foi possível ler senha do STDIN\n";
+        exit(1);
+    }
+    
+    $password = trim(fgets($handle));
+    fclose($handle);
+    
+    // Validar se senha foi fornecida
+    if (empty($password)) {
+        echo "❌ ERRO: Senha do certificado é obrigatória\n";
         exit(1);
     }
     
     try {
         $signer = new PdfSigner($certPath, $password);
         $result = $signer->signPdf($inputPdf, $outputPdf);
+        
+        // Limpar senha da memória por segurança
+        $password = null;
+        unset($password);
         
         if ($result['success']) {
             echo "✅ SUCESSO: {$result['message']}\n";
