@@ -199,8 +199,6 @@ export default function ModelosPage() {
           </Dialog>
         </div>
 
-        </div>
-
       {/* Search Bar */}
       <div className="relative mb-8">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
