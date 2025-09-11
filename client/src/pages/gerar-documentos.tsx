@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,12 +12,15 @@ import { FileText, Upload, Download, Copy, FileSpreadsheet, Type, Loader2, Plus,
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 
-// TODO: Replace with real data
-const mockTemplates = [
-  { id: '1', name: 'Certificado de Conclusão', variables: ['NOME', 'CURSO', 'DATA_CONCLUSAO', 'INSTRUTOR'] },
-  { id: '2', name: 'Contrato de Prestação de Serviços', variables: ['CONTRATANTE', 'CONTRATADO', 'VALOR', 'PRAZO'] },
-  { id: '3', name: 'Declaração de Participação', variables: ['PARTICIPANTE', 'EVENTO', 'LOCAL', 'DATA_EVENTO'] }
-];
+interface Template {
+  id: string;
+  name: string;
+  variables: string[];
+  originalFilename?: string;
+  mimeType?: string;
+  createdAt: string;
+  storageRef: string;
+}
 
 // TODO: Replace with real data from API
 const mockCertificates = [
@@ -35,6 +39,12 @@ export default function GerarDocumentosPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Fetch templates from API
+  const { data: templates = [], isLoading: templatesLoading } = useQuery({
+    queryKey: ['/api/templates'],
+    enabled: true
+  }) as { data: Template[]; isLoading: boolean };
   
   // Configuration states
   const [batchName, setBatchName] = useState('');
@@ -57,7 +67,7 @@ export default function GerarDocumentosPage() {
     error?: string;
   }>>([]);
 
-  const selectedTemplateData = mockTemplates.find(t => t.id === selectedTemplate);
+  const selectedTemplateData = templates.find(t => t.id === selectedTemplate);
   const validCertificates = mockCertificates.filter(cert => cert.status === 'valid');
 
   // Auto-select certificate if only one is available
@@ -367,7 +377,7 @@ export default function GerarDocumentosPage() {
                   <SelectValue placeholder="Selecione um modelo..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockTemplates.map((template) => (
+                  {templates.map((template: Template) => (
                     <SelectItem key={template.id} value={template.id}>
                       <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4" />

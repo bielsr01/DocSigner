@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,44 +9,109 @@ import { FileText, Upload, Download, Edit, Trash2, Search, Plus, Eye } from "luc
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 
-// TODO: Replace with real data
-const mockTemplates = [
-  {
-    id: '1',
-    name: 'Certificado de Conclusão',
-    description: 'Template para certificados de curso',
-    variables: ['{{NOME}}', '{{CURSO}}', '{{DATA_CONCLUSAO}}', '{{INSTRUTOR}}'],
-    createdAt: '2024-01-15',
-    fileSize: '45 KB'
-  },
-  {
-    id: '2', 
-    name: 'Contrato de Prestação de Serviços',
-    description: 'Modelo padrão para contratos',
-    variables: ['{{CONTRATANTE}}', '{{CONTRATADO}}', '{{VALOR}}', '{{PRAZO}}', '{{DATA_INICIO}}'],
-    createdAt: '2024-01-10',
-    fileSize: '78 KB'
-  },
-  {
-    id: '3',
-    name: 'Declaração de Participação',
-    description: 'Para eventos e palestras',
-    variables: ['{{PARTICIPANTE}}', '{{EVENTO}}', '{{LOCAL}}', '{{DATA_EVENTO}}'],
-    createdAt: '2024-01-08',
-    fileSize: '32 KB'
-  }
-];
+interface Template {
+  id: string;
+  name: string;
+  variables: string[];
+  originalFilename?: string;
+  mimeType?: string;
+  createdAt: string;
+  storageRef: string;
+  description?: string;
+  fileSize?: string;
+}
 
 export default function ModelosPage() {
-  const [templates, setTemplates] = useState(mockTemplates);
   const [searchTerm, setSearchTerm] = useState('');
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [uploadData, setUploadData] = useState({ name: '', description: '', file: null as File | null });
+  const { toast } = useToast();
 
-  const filteredTemplates = templates.filter(template => 
-    template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    template.description.toLowerCase().includes(searchTerm.toLowerCase())
+  // Fetch templates from API
+  const { data: templates = [], isLoading, error } = useQuery({
+    queryKey: ['/api/templates'],
+    enabled: true
+  }) as { data: Template[]; isLoading: boolean; error: any };
+
+  // Create test template mutation
+  const createTestTemplateMutation = useMutation({
+    mutationFn: () => fetch('/api/templates/create-test', { 
+      method: 'POST', 
+      credentials: 'include' 
+    }).then(res => res.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
+      toast({
+        title: "Template de teste criado",
+        description: "Template com variáveis {{nome}} e {{data}} foi criado com sucesso.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: "Falha ao criar template de teste",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Upload template mutation
+  const uploadTemplateMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch('/api/templates', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
+      setUploadData({ name: '', description: '', file: null });
+      setIsUploadDialogOpen(false);
+      toast({
+        title: "Template enviado",
+        description: "Template foi enviado e processado com sucesso.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro no upload",
+        description: "Falha ao enviar template",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Delete template mutation
+  const deleteTemplateMutation = useMutation({
+    mutationFn: (templateId: string) => fetch(`/api/templates/${templateId}`, { 
+      method: 'DELETE', 
+      credentials: 'include' 
+    }).then(res => res.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
+      toast({
+        title: "Template removido",
+        description: "Template foi removido com sucesso.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: "Falha ao remover template",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const filteredTemplates = templates.filter((template: Template) => 
+    template.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,26 +125,30 @@ export default function ModelosPage() {
   const handleUploadSubmit = () => {
     if (!uploadData.file || !uploadData.name) return;
     
-    console.log('Uploading template:', uploadData);
-    // TODO: Implement actual upload
+    const formData = new FormData();
+    formData.append('file', uploadData.file);
+    formData.append('name', uploadData.name);
+    if (uploadData.description) {
+      formData.append('description', uploadData.description);
+    }
     
-    const newTemplate = {
-      id: Date.now().toString(),
-      name: uploadData.name,
-      description: uploadData.description,
-      variables: ['{{VARIAVEL1}}', '{{VARIAVEL2}}'], // TODO: Extract from file
-      createdAt: new Date().toISOString().split('T')[0],
-      fileSize: `${Math.round(uploadData.file.size / 1024)} KB`
-    };
-    
-    setTemplates([newTemplate, ...templates]);
-    setUploadData({ name: '', description: '', file: null });
-    setIsUploadDialogOpen(false);
+    uploadTemplateMutation.mutate(formData);
   };
 
   const handleTemplateAction = (action: string, templateId: string) => {
-    console.log(`${action} template:`, templateId);
-    // TODO: Implement template actions
+    switch (action) {
+      case 'delete':
+        if (confirm('Tem certeza que deseja excluir este template?')) {
+          deleteTemplateMutation.mutate(templateId);
+        }
+        break;
+      case 'download':
+        // Download template
+        window.open(`/api/templates/${templateId}/download`, '_blank');
+        break;
+      default:
+        console.log(`${action} template:`, templateId);
+    }
   };
 
   return (
@@ -89,13 +160,23 @@ export default function ModelosPage() {
             <p className="text-muted-foreground">Gerencie seus templates com variáveis dinâmicas</p>
           </div>
           
-          <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-upload-template">
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Modelo
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => createTestTemplateMutation.mutate()}
+              disabled={createTestTemplateMutation.isPending}
+              variant="outline"
+              data-testid="button-create-test-template"
+            >
+              {createTestTemplateMutation.isPending ? 'Criando...' : 'Template de Teste'}
+            </Button>
+            
+            <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-upload-template">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo Modelo
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Enviar Novo Modelo</DialogTitle>
@@ -247,8 +328,9 @@ export default function ModelosPage() {
                 Enviar Primeiro Modelo
               </Button>
             )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
