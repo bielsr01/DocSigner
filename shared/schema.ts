@@ -63,7 +63,7 @@ export const batches = pgTable("batches", {
   templateIdIdx: index("batches_template_id_idx").on(table.templateId),
 }));
 
-// Documents table - generated documents
+// Documents table - generated documents and uploaded documents
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -73,6 +73,9 @@ export const documents = pgTable("documents", {
   status: text("status").notNull().default("processing"), // processing, ready, signed, failed
   storageRef: text("storage_ref"), // Path to generated document
   variables: text("variables"), // JSON string of variables used
+  source: text("source").notNull().default("template"), // template, upload - distinguishes generated vs uploaded docs
+  originalFilename: text("original_filename"), // For uploaded files
+  mimeType: text("mime_type"), // For uploaded files
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   userIdIdx: index("documents_user_id_idx").on(table.userId),

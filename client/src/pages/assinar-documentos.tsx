@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -7,20 +7,23 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileSignature, CheckCircle, Clock, AlertTriangle, RefreshCw, Activity } from "lucide-react";
+import { FileSignature, CheckCircle, Clock, AlertTriangle, RefreshCw, Activity, Upload, Download } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 import type { Document, Certificate, Signature } from "@shared/schema";
 
 export default function AssinarDocumentosPage() {
   const [selectedCertificate, setSelectedCertificate] = useState('');
   const [certificatePassword, setCertificatePassword] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const { toast } = useToast();
 
-  // Fetch documents from API
+  // Fetch only uploaded documents (not generated from templates) for this tab
   const { data: documents = [], isLoading: documentsLoading, refetch: refetchDocuments } = useQuery({
-    queryKey: ['/api/documents'],
+    queryKey: ['/api/documents/uploaded'],
     enabled: true
   }) as { data: Document[]; isLoading: boolean; refetch: () => void };
 
@@ -60,9 +63,15 @@ export default function AssinarDocumentosPage() {
     return validToDate > now;
   });
   
-  const readyDocuments = documents.filter((doc: Document) => doc.status === 'ready');
+  // Auto-preselect certificate if only one exists
+  useEffect(() => {
+    if (validCertificates.length === 1 && !selectedCertificate) {
+      setSelectedCertificate(validCertificates[0].id);
+    }
+  }, [validCertificates, selectedCertificate]);
+  
+  // Only show signed and failed documents for upload workflow
   const signedDocuments = documents.filter((doc: Document) => doc.status === 'signed');
-  const processingDocuments = documents.filter((doc: Document) => doc.status === 'processing');
   const failedDocuments = documents.filter((doc: Document) => doc.status === 'failed');
 
   const handleRefreshStatus = () => {
@@ -72,12 +81,80 @@ export default function AssinarDocumentosPage() {
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
-  const handleSignDocument = (documentId: string) => {
-    if (selectedCertificate) {
-      signDocumentMutation.mutate({
-        documentId,
-        certificateId: selectedCertificate,
-        certificatePassword: '' // Remove password requirement
+  // Upload and sign PDFs mutation
+  const uploadAndSignMutation = useMutation({
+    mutationFn: async (files: File[]) => {
+      const formData = new FormData();
+      files.forEach((file, index) => {
+        formData.append(`files`, file);
+      });
+      formData.append('certificateId', selectedCertificate);
+      
+      return apiRequest('POST', '/api/documents/upload-and-sign', formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents/uploaded'] });
+      refetchDocuments();
+      setSelectedFiles([]);
+      toast({
+        title: "Sucesso!",
+        description: "Documentos enviados e assinados com sucesso.",
+        variant: "default"
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: "Falha ao enviar e assinar documentos.",
+        variant: "destructive"
+      });
+    }
+  });
+  
+  const handleUploadAndSign = () => {
+    if (selectedFiles.length > 0 && selectedCertificate) {
+      uploadAndSignMutation.mutate(selectedFiles);
+    }
+  };
+  
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    const pdfFiles = files.filter(file => file.type === 'application/pdf');
+    
+    if (pdfFiles.length !== files.length) {
+      toast({
+        title: "Aviso",
+        description: "Apenas arquivos PDF são permitidos.",
+        variant: "destructive"
+      });
+    }
+    
+    setSelectedFiles(pdfFiles);
+  };
+  
+  const downloadDocument = async (documentId: string, filename: string) => {
+    try {
+      const response = await fetch(`/api/documents/${documentId}/download`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) throw new Error('Download failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Falha ao fazer download do documento.",
+        variant: "destructive"
       });
     }
   };
@@ -140,11 +217,11 @@ export default function AssinarDocumentosPage() {
         </div>
       </div>
 
-      {/* Certificate Selection */}
+      {/* Upload and Sign Section */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Configurações de Assinatura</CardTitle>
-          <CardDescription>Selecione o certificado e senha para assinatura</CardDescription>
+          <CardTitle>Enviar e Assinar Documentos PDF</CardTitle>
+          <CardDescription>Faça upload de arquivos PDF para assinatura digital automática</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -152,7 +229,7 @@ export default function AssinarDocumentosPage() {
               <Label htmlFor="certificate">Certificado Digital</Label>
               <Select value={selectedCertificate} onValueChange={setSelectedCertificate}>
                 <SelectTrigger data-testid="select-certificate">
-                  <SelectValue placeholder="Selecione um certificado..." />
+                  <SelectValue placeholder={validCertificates.length === 1 ? "Certificado selecionado automaticamente" : "Selecione um certificado..."} />
                 </SelectTrigger>
                 <SelectContent>
                   {validCertificates.map((cert) => (
@@ -168,96 +245,89 @@ export default function AssinarDocumentosPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label htmlFor="pdf-upload">Documentos PDF</Label>
+              <Input
+                id="pdf-upload"
+                type="file"
+                accept=".pdf"
+                multiple
+                onChange={handleFileChange}
+                data-testid="input-pdf-upload"
+              />
+            </div>
           </div>
-          {!isSigningEnabled && (
+          
+          {selectedFiles.length > 0 && (
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">Arquivos selecionados:</p>
+              <ul className="text-sm space-y-1">
+                {selectedFiles.map((file, index) => (
+                  <li key={index} className="flex items-center space-x-2">
+                    <FileSignature className="w-4 h-4" />
+                    <span>{file.name}</span>
+                    <span className="text-muted-foreground">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          
+          <div className="flex gap-2">
+            <Button
+              onClick={handleUploadAndSign}
+              disabled={selectedFiles.length === 0 || !selectedCertificate || uploadAndSignMutation.isPending}
+              data-testid="button-upload-sign"
+            >
+              {uploadAndSignMutation.isPending ? (
+                <Activity className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4 mr-2" />
+              )}
+              {uploadAndSignMutation.isPending ? 'Processando...' : 'Enviar e Assinar'}
+            </Button>
+            {selectedFiles.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setSelectedFiles([])}
+                data-testid="button-clear-files"
+              >
+                Limpar
+              </Button>
+            )}
+          </div>
+          
+          {!selectedCertificate && validCertificates.length > 1 && (
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                Selecione um certificado e digite a senha para habilitar a assinatura.
+                Selecione um certificado para habilitar o envio e assinatura.
               </AlertDescription>
             </Alert>
           )}
         </CardContent>
       </Card>
 
-      {/* Documents Tabs */}
-      <Tabs defaultValue="ready" className="space-y-4">
+      {/* Documents Tabs - Only signed and failed */}
+      <Tabs defaultValue="signed" className="space-y-4">
         <div className="flex items-center justify-between">
           <TabsList>
-            <TabsTrigger value="ready" data-testid="tab-ready">
-              Prontos ({readyDocuments.length})
-            </TabsTrigger>
             <TabsTrigger value="signed" data-testid="tab-signed">
               Assinados ({signedDocuments.length})
             </TabsTrigger>
-            <TabsTrigger value="processing" data-testid="tab-processing">
-              Processando ({processingDocuments.length})
-            </TabsTrigger>
             <TabsTrigger value="failed" data-testid="tab-failed">
-              Falharam ({failedDocuments.length})
+              Com Falha ({failedDocuments.length})
             </TabsTrigger>
           </TabsList>
         </div>
 
-        {/* Ready Documents */}
-        <TabsContent value="ready" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Documentos Prontos para Assinatura</CardTitle>
-              <CardDescription>Documentos gerados aguardando assinatura digital</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {readyDocuments.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Documento</TableHead>
-                      <TableHead>Criado em</TableHead>
-                      <TableHead>Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {readyDocuments.map((document) => (
-                      <TableRow key={document.id}>
-                        <TableCell>{getStatusIcon(document.status)}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{document.filename}</span>
-                            <span className="text-xs text-muted-foreground">ID: {document.id}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{formatDate(document.createdAt)}</TableCell>
-                        <TableCell>
-                          <Button
-                            onClick={() => handleSignDocument(document.id)}
-                            disabled={!isSigningEnabled || signDocumentMutation.isPending}
-                            size="sm"
-                            data-testid={`button-sign-${document.id}`}
-                          >
-                            <FileSignature className="w-4 h-4 mr-2" />
-                            Assinar
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center py-6 text-muted-foreground">
-                  Nenhum documento pronto para assinatura
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Signed Documents */}
         <TabsContent value="signed" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Documentos Assinados</CardTitle>
-              <CardDescription>Documentos com assinatura digital concluída</CardDescription>
+              <CardDescription>Documentos PDF enviados e assinados com sucesso</CardDescription>
             </CardHeader>
             <CardContent>
               {signedDocuments.length > 0 ? (
@@ -266,8 +336,9 @@ export default function AssinarDocumentosPage() {
                     <TableRow>
                       <TableHead>Status</TableHead>
                       <TableHead>Documento</TableHead>
-                      <TableHead>Criado em</TableHead>
+                      <TableHead>Enviado em</TableHead>
                       <TableHead>Assinado em</TableHead>
+                      <TableHead>Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -286,6 +357,17 @@ export default function AssinarDocumentosPage() {
                           <TableCell>
                             {signature?.signedAt ? formatDate(signature.signedAt) : 'N/A'}
                           </TableCell>
+                          <TableCell>
+                            <Button
+                              onClick={() => downloadDocument(document.id, document.filename)}
+                              size="sm"
+                              variant="outline"
+                              data-testid={`button-download-${document.id}`}
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              Download
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -293,60 +375,20 @@ export default function AssinarDocumentosPage() {
                 </Table>
               ) : (
                 <div className="text-center py-6 text-muted-foreground">
-                  Nenhum documento assinado
+                  Nenhum documento assinado ainda. Envie arquivos PDF acima para começar.
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Processing Documents */}
-        <TabsContent value="processing" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Documentos em Processamento</CardTitle>
-              <CardDescription>Documentos sendo processados</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {processingDocuments.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Documento</TableHead>
-                      <TableHead>Criado em</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {processingDocuments.map((document) => (
-                      <TableRow key={document.id}>
-                        <TableCell>{getStatusIcon(document.status)}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{document.filename}</span>
-                            {getStatusBadge(document.status)}
-                          </div>
-                        </TableCell>
-                        <TableCell>{formatDate(document.createdAt)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center py-6 text-muted-foreground">
-                  Nenhum documento em processamento
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Failed Documents */}
         <TabsContent value="failed" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Documentos com Erro</CardTitle>
-              <CardDescription>Documentos que falharam no processamento</CardDescription>
+              <CardTitle>Documentos com Falha</CardTitle>
+              <CardDescription>Documentos que falharam no processamento ou assinatura</CardDescription>
             </CardHeader>
             <CardContent>
               {failedDocuments.length > 0 ? (
@@ -355,7 +397,7 @@ export default function AssinarDocumentosPage() {
                     <TableRow>
                       <TableHead>Status</TableHead>
                       <TableHead>Documento</TableHead>
-                      <TableHead>Criado em</TableHead>
+                      <TableHead>Enviado em</TableHead>
                       <TableHead>Erro</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -374,7 +416,7 @@ export default function AssinarDocumentosPage() {
                           <TableCell>{formatDate(document.createdAt)}</TableCell>
                           <TableCell>
                             <span className="text-sm text-red-600">
-                              {signature?.errorMessage || 'Erro desconhecido'}
+                              {signature?.errorMessage || 'Erro na assinatura digital'}
                             </span>
                           </TableCell>
                         </TableRow>
@@ -384,7 +426,7 @@ export default function AssinarDocumentosPage() {
                 </Table>
               ) : (
                 <div className="text-center py-6 text-muted-foreground">
-                  Nenhum documento com erro
+                  Nenhum documento com falha
                 </div>
               )}
             </CardContent>
