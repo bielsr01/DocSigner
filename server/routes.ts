@@ -497,7 +497,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { certificateId } = req.body;
       const files = req.files as Express.Multer.File[];
       
+      // Debug logging
+      console.log('🔍 Upload request debug:');
+      console.log('req.files:', files);
+      console.log('req.body:', req.body);
+      console.log('files array length:', files ? files.length : 'files is null/undefined');
+      
       if (!files || files.length === 0) {
+        console.error('❌ No files uploaded - files:', files);
         return res.status(400).json({ error: 'No files uploaded' });
       }
       

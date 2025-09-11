@@ -84,11 +84,19 @@ export default function AssinarDocumentosPage() {
   // Upload and sign PDFs mutation
   const uploadAndSignMutation = useMutation({
     mutationFn: async (files: File[]) => {
+      console.log('🔍 Frontend uploading files:', files);
       const formData = new FormData();
       files.forEach((file, index) => {
-        formData.append(`files`, file);
+        console.log(`📄 Adding file ${index}:`, file.name, file.type, file.size);
+        formData.append('files', file); // Remove backticks, use plain 'files'
       });
       formData.append('certificateId', selectedCertificate);
+      
+      // Debug FormData
+      console.log('📤 FormData contents:');
+      for (let [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File: ${value.name}` : value);
+      }
       
       return apiRequest('POST', '/api/documents/upload-and-sign', formData);
     },
@@ -228,7 +236,7 @@ export default function AssinarDocumentosPage() {
             <div>
               <Label htmlFor="certificate">Certificado Digital</Label>
               <Select value={selectedCertificate} onValueChange={setSelectedCertificate}>
-                <SelectTrigger data-testid="select-certificate">
+                <SelectTrigger data-testid="select-certificate" className="flex items-center justify-center text-center">
                   <SelectValue placeholder={validCertificates.length === 1 ? "Certificado selecionado automaticamente" : "Selecione um certificado..."} />
                 </SelectTrigger>
                 <SelectContent>
