@@ -63,14 +63,26 @@ class PdfSigner {
             if (openssl_pkcs12_read($pfxContent, $certs, $this->password)) {
                 $certificate = $certs['cert'];
                 $privateKey = $certs['pkey'];
+                $extraCerts = $certs['extracerts'] ?? [];
             } else {
                 throw new \Exception('Erro ao ler o certificado PFX. Senha incorreta ou arquivo inválido.');
             }
 
-            $pdf->setSignature($certificate, $privateKey, $this->password, '', 2, 'Assinatura Digital');
+            // Configuração específica para ICP-Brasil - inclui cadeia de certificação
+            $pdf->setSignature($certificate, $privateKey, $this->password, $extraCerts, 2, array(
+                'signingTime' => true,
+                'signingCertificate' => true,
+                'encryptedDigest' => true
+            ));
             
-            // Define a posição da assinatura
-            $pdf->setSignatureAppearance(50, 50, 100, 20);
+            // Define informações da assinatura para ICP-Brasil
+            $info = array(
+                'Name' => 'Assinatura Digital ICP-Brasil',
+                'Location' => 'Brasil',
+                'Reason' => 'Documento assinado digitalmente conforme MP 2.200-2/2001',
+                'ContactInfo' => 'Certificado Digital ICP-Brasil'
+            );
+            $pdf->setSignatureAppearance(50, 50, 100, 20, $info);
 
             // Salva o PDF assinado
             $pdf->Output($pdfOutputPath, 'F');
