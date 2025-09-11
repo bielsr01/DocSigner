@@ -490,22 +490,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test upload endpoint (for debugging)
-  app.post("/api/test-upload", requireAuth, uploadFiles.array('files', 10), (req, res) => {
-    console.log('🔍 TEST UPLOAD - req.files:', req.files);
-    console.log('🔍 TEST UPLOAD - req.body:', req.body);
-    console.log('🔍 TEST UPLOAD - files length:', req.files ? (req.files as any).length : 'null/undefined');
+  // Debug upload endpoint with raw middleware
+  app.post("/api/test-upload-direct", requireAuth, (req, res) => {
+    console.log('🔍 DIRECT TEST - req.headers:', req.headers);
+    console.log('🔍 DIRECT TEST - content-type:', req.get('content-type'));
+    console.log('🔍 DIRECT TEST - req.body:', typeof req.body, Object.keys(req.body || {}));
+    console.log('🔍 DIRECT TEST - req.files:', req.files);
     
+    // Process multipart form data manually if needed
     res.json({
       success: true,
-      filesReceived: req.files ? (req.files as any).length : 0,
-      files: req.files,
-      body: req.body
+      headers: req.headers,
+      contentType: req.get('content-type'),
+      bodyType: typeof req.body,
+      bodyKeys: Object.keys(req.body || {}),
+      files: req.files
     });
   });
 
   // Upload and sign PDFs endpoint
-  app.post("/api/documents/upload-and-sign", requireAuth, uploadFiles.array('files', 10), async (req, res) => {
+  app.post("/api/documents/upload-and-sign", requireAuth, upload.array('files', 10), async (req, res) => {
     try {
       const user = (req as any).user;
       const { certificateId } = req.body;
