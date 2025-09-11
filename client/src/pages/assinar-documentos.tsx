@@ -94,9 +94,10 @@ export default function AssinarDocumentosPage() {
       
       // Debug FormData
       console.log('📤 FormData contents:');
-      for (let [key, value] of formData.entries()) {
+      const formDataEntries = Array.from(formData.entries());
+      formDataEntries.forEach(([key, value]) => {
         console.log(`  ${key}:`, value instanceof File ? `File: ${value.name}` : value);
-      }
+      });
       
       return apiRequest('POST', '/api/documents/upload-and-sign', formData);
     },

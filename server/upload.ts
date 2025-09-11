@@ -64,7 +64,24 @@ export const upload = multer({
   fileFilter: fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit per file
-    files: 10 // Allow up to 10 files for batch upload
+    files: 10, // Allow up to 10 files for batch upload
+    fieldSize: 1024 * 1024 * 2 // 2MB field size limit
+  }
+});
+
+// Alternative upload handler for problematic routes
+export const uploadFiles = multer({
+  dest: 'uploads/documents',
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+    files: 10
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'));
+    }
   }
 });
 
