@@ -175,11 +175,11 @@ export default function ModelosPage() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="template-file">Arquivo (.docx)</Label>
+                  <Label htmlFor="template-file">Arquivo (.pdf, .docx)</Label>
                   <Input
                     id="template-file"
                     type="file"
-                    accept=".docx"
+                    accept=".pdf,.docx"
                     onChange={handleFileUpload}
                     data-testid="input-template-file"
                   />
