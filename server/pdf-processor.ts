@@ -2,6 +2,7 @@ import { PDFDocument, PDFForm, PDFTextField, rgb } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
 import mammoth from 'mammoth';
+import { DocxProcessor } from './docx-processor';
 
 export interface PDFVariable {
   name: string;
@@ -50,26 +51,8 @@ export class PDFProcessor {
           }
         }
       } else if (extension === '.docx') {
-        // Handle Word documents
-        const result = await mammoth.extractRawText({ path: filePath });
-        const text = result.value;
-        
-        // Find all {{variable}} patterns in the text
-        const variableMatches = text.match(/{{[^}]+}}/g);
-        
-        if (variableMatches) {
-          for (const match of variableMatches) {
-            const varName = match.replace(/[{}]/g, '').trim();
-            if (!foundVariables.has(varName)) {
-              foundVariables.add(varName);
-              variables.push({
-                name: varName,
-                type: this.guessVariableType(varName),
-                placeholder: `{{${varName}}}`
-              });
-            }
-          }
-        }
+        // Use the new DocxProcessor for better variable extraction
+        return await DocxProcessor.extractVariables(filePath);
       }
 
       // If no variables found, add common variables as examples
@@ -104,7 +87,8 @@ export class PDFProcessor {
       const extension = path.extname(templatePath).toLowerCase();
       
       if (extension === '.docx') {
-        return await this.generateFromDocx(templatePath, data, outputPath);
+        // Use the new DocxProcessor for better layout preservation
+        return await DocxProcessor.generateDocument(templatePath, data, outputPath);
       } else if (extension === '.pdf') {
         return await this.generateFromPdf(templatePath, data, outputPath);
       } else {
