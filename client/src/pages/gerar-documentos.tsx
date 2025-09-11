@@ -763,7 +763,7 @@ export default function GerarDocumentosPage() {
                             </Badge>
                           )}
                           
-                          {doc.status === 'signed' && doc.downloadUrl && (
+                          {(doc.status === 'signed' || doc.status === 'generated') && doc.downloadUrl && (
                             <Button 
                               size="sm" 
                               variant="outline"
