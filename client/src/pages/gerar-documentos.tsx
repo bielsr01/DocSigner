@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileText, Upload, Download, Copy, FileSpreadsheet, Type, Loader2, Plus, Trash2, Edit, RefreshCw, FileSignature, AlertTriangle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
 
 interface Template {
   id: string;
@@ -44,6 +45,7 @@ export default function GerarDocumentosPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { toast } = useToast();
 
   // Fetch templates from API
   const { data: templates = [], isLoading: templatesLoading } = useQuery({
@@ -223,59 +225,76 @@ export default function GerarDocumentosPage() {
     // Add to history
     setGeneratedDocuments(prev => [newDocument, ...prev]);
     
-    // Simulate generation progress with realistic workflow
-    const interval = setInterval(() => {
-      setGenerationProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsGenerating(false);
-          
-          // Update document status to "generated" and then simulate signing process
-          setGeneratedDocuments(prevDocs => 
-            prevDocs.map(doc => 
-              doc.id === documentId 
-                ? { ...doc, status: 'generated' as const }
-                : doc
-            )
-          );
-          
-          // Start automatic signing process after 1 second
-          setTimeout(() => {
-            setGeneratedDocuments(prevDocs => 
-              prevDocs.map(doc => 
-                doc.id === documentId 
-                  ? { ...doc, status: 'signing' as const }
-                  : doc
-              )
-            );
-            
-            // Complete signing after 3 seconds
-            setTimeout(() => {
-              setGeneratedDocuments(prevDocs => 
-                prevDocs.map(doc => 
-                  doc.id === documentId 
-                    ? { 
-                        ...doc, 
-                        status: 'signed' as const, 
-                        completedAt: new Date(),
-                        downloadUrl: `/api/documents/${documentId}/download`
-                      }
-                    : doc
-                )
-              );
-            }, 3000);
-          }, 1000);
-          
-          // DON'T clear data after generation - keep it for user to see
-          console.log('Document generation completed for:', documentId);
-          return 100;
-        }
-        return prev + 20;
+    // REAL API CALL - Generate documents via backend
+    try {
+      console.log('Making real API call to generate documents...');
+      
+      const response = await fetch('/api/documents/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          templateId: selectedTemplate,
+          data: dataToProcess.length === 1 ? dataToProcess[0] : null,
+          batchData: dataToProcess.length > 1 ? dataToProcess : null
+        })
       });
-    }, 500);
-    
-    // TODO: Implement actual document generation API call
-    // This should call the backend to start the real generation process
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Generation failed: ${error}`);
+      }
+
+      const result = await response.json();
+      console.log('Documents generated successfully:', result);
+      
+      // Update documents with real backend response
+      const backendDocuments = Array.isArray(result.documents) ? result.documents : [result.document];
+      
+      setGeneratedDocuments(prevDocs => 
+        prevDocs.map(doc => 
+          doc.id === documentId 
+            ? { 
+                ...doc, 
+                status: 'generated' as const,
+                backendId: backendDocuments[0]?.id || documentId, // Use real backend ID
+                downloadUrl: `/api/documents/${backendDocuments[0]?.id || documentId}/download`,
+                completedAt: new Date()
+              }
+            : doc
+        )
+      );
+
+      setIsGenerating(false);
+      setGenerationProgress(100);
+      
+      toast({
+        title: "Documentos gerados com sucesso!",
+        description: `${dataToProcess.length} documento(s) gerado(s) e pronto(s) para download.`
+      });
+
+    } catch (error) {
+      console.error('Document generation failed:', error);
+      
+      // Mark document as failed
+      setGeneratedDocuments(prevDocs => 
+        prevDocs.map(doc => 
+          doc.id === documentId 
+            ? { ...doc, status: 'error' as const }
+            : doc
+        )
+      );
+
+      setIsGenerating(false);
+      setGenerationProgress(0);
+      
+      toast({
+        title: "Erro na geração",
+        description: error instanceof Error ? error.message : "Falha ao gerar documentos. Tente novamente.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleRefreshStatus = async () => {
