@@ -41,8 +41,22 @@ export default function DashboardPage() {
   const certificatesCount = certificates.length;
   const pendingSignatures = documents.filter((doc: any) => doc.status === 'generated' || doc.status === 'processing').length;
   
+  // Filter to show only document-related events (same as history page)
+  const relevantActions = [
+    'document_generated',
+    'batch_generated', 
+    'pdf_uploaded_signed',
+    'document_signed',
+    'document_error',
+    'signing_error'
+  ];
+  
+  const filteredActivity = activity.filter((item: any) => 
+    relevantActions.includes(item.action)
+  );
+  
   // Get recent activity (first 4 items)
-  const recentActivity = activity.slice(0, 4);
+  const recentActivity = filteredActivity.slice(0, 4);
   
   const handleRefreshStats = async () => {
     console.log('Refreshing dashboard stats...');
@@ -54,15 +68,18 @@ export default function DashboardPage() {
     ]);
   };
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
+  const getActivityIcon = (action: string) => {
+    switch (action) {
       case 'document_generated':
         return <FileText className="w-4 h-4 text-blue-500" />;
+      case 'batch_generated':
+        return <RefreshCw className="w-4 h-4 text-purple-500" />;
+      case 'pdf_uploaded_signed':
+        return <Upload className="w-4 h-4 text-green-500" />;
       case 'document_signed':
         return <FileSignature className="w-4 h-4 text-green-500" />;
-      case 'template_uploaded':
-        return <Upload className="w-4 h-4 text-orange-500" />;
       case 'document_error':
+      case 'signing_error':
         return <AlertTriangle className="w-4 h-4 text-red-500" />;
       default:
         return <Clock className="w-4 h-4 text-gray-500" />;
@@ -70,13 +87,16 @@ export default function DashboardPage() {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    // Simplify status to success/error only (same as history page)
+    const normalizedStatus = status === 'success' ? 'success' : 'error';
+    
+    switch (normalizedStatus) {
       case 'success':
         return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Sucesso</Badge>;
       case 'error':
         return <Badge variant="destructive">Erro</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="destructive">Erro</Badge>; // Default to error if status is unclear
     }
   };
 
@@ -230,19 +250,28 @@ export default function DashboardPage() {
                 {recentActivity.map((activity) => (
                   <div key={activity.id} className="flex items-start gap-3">
                     <div className="mt-0.5">
-                      {getActivityIcon(activity.type)}
+                      {getActivityIcon(activity.action)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{activity.description}</p>
+                      <p className="text-sm font-medium">
+                        {activity.documentName || activity.template || 'Documento'}
+                      </p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-muted-foreground">
-                          {formatDateTime(activity.timestamp)}
+                          {formatDateTime(activity.createdAt)}
                         </span>
                         {getStatusBadge(activity.status)}
                       </div>
                     </div>
                   </div>
                 ))}
+                {recentActivity.length === 0 && (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma atividade recente
+                    </p>
+                  </div>
+                )}
                 
                 <Button 
                   variant="outline" 
