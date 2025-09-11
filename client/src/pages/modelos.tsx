@@ -35,27 +35,6 @@ export default function ModelosPage() {
     enabled: true
   }) as { data: Template[]; isLoading: boolean; error: any };
 
-  // Create test template mutation
-  const createTestTemplateMutation = useMutation({
-    mutationFn: () => fetch('/api/templates/create-test', { 
-      method: 'POST', 
-      credentials: 'include' 
-    }).then(res => res.json()),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
-      toast({
-        title: "Template de teste criado",
-        description: "Template com variáveis {{nome}} e {{data}} foi criado com sucesso.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro",
-        description: "Falha ao criar template de teste",
-        variant: "destructive",
-      });
-    }
-  });
 
   // Upload template mutation
   const uploadTemplateMutation = useMutation({
@@ -161,15 +140,6 @@ export default function ModelosPage() {
           </div>
           
           <div className="flex gap-2">
-            <Button 
-              onClick={() => createTestTemplateMutation.mutate()}
-              disabled={createTestTemplateMutation.isPending}
-              variant="outline"
-              data-testid="button-create-test-template"
-            >
-              {createTestTemplateMutation.isPending ? 'Criando...' : 'Template de Teste'}
-            </Button>
-            
             <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
               <DialogTrigger asChild>
                 <Button data-testid="button-upload-template">
@@ -272,7 +242,7 @@ export default function ModelosPage() {
                   </div>
                   
                   <div className="text-xs text-muted-foreground">
-                    Criado em {template.createdAt}
+                    Criado em {new Date(template.createdAt).toLocaleDateString('pt-BR')}
                   </div>
                   
                   <div className="flex gap-2">
