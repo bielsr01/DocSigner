@@ -1,40 +1,19 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield, Upload, Eye, Trash2, AlertTriangle, CheckCircle, Lock, Key } from "lucide-react";
+import { Shield, Upload, Eye, Trash2, AlertTriangle, CheckCircle, Lock, Key, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-// TODO: Replace with real data
-const mockCertificates = [
-  {
-    id: '1',
-    name: 'Certificado Empresa LTDA',
-    issuer: 'ICP-Brasil',
-    validFrom: '2024-01-01',
-    validTo: '2025-01-01',
-    status: 'valid',
-    type: 'A3',
-    serialNumber: '1A2B3C4D5E'
-  },
-  {
-    id: '2',
-    name: 'Certificado Teste',
-    issuer: 'AC Teste',
-    validFrom: '2023-06-01',
-    validTo: '2024-06-01',
-    status: 'expired',
-    type: 'A1',
-    serialNumber: '9Z8Y7X6W5V'
-  }
-];
+import { useToast } from "@/hooks/use-toast";
+import type { Certificate } from "@shared/schema";
 
 export default function CertificadosPage() {
-  const [certificates, setCertificates] = useState(mockCertificates);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [uploadData, setUploadData] = useState({ 
     file: null as File | null, 
@@ -42,6 +21,67 @@ export default function CertificadosPage() {
     confirmPassword: '' 
   });
   const [activeTab, setActiveTab] = useState('list');
+  const { toast } = useToast();
+
+  // Fetch certificates from API
+  const { data: certificates = [], isLoading, refetch } = useQuery({
+    queryKey: ['/api/certificates'],
+    enabled: true
+  }) as { data: Certificate[]; isLoading: boolean; refetch: () => void };
+
+  // Upload certificate mutation
+  const uploadCertificateMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch('/api/certificates', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/certificates'] });
+      setUploadData({ file: null, password: '', confirmPassword: '' });
+      setIsUploadDialogOpen(false);
+      toast({
+        title: "Certificado enviado",
+        description: "Certificado foi enviado e validado com sucesso.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro no upload",
+        description: error.message || "Falha ao enviar certificado",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Delete certificate mutation
+  const deleteCertificateMutation = useMutation({
+    mutationFn: (certificateId: string) => fetch(`/api/certificates/${certificateId}`, { 
+      method: 'DELETE', 
+      credentials: 'include' 
+    }).then(res => res.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/certificates'] });
+      toast({
+        title: "Certificado removido",
+        description: "Certificado foi removido com sucesso.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: "Falha ao remover certificado",
+        variant: "destructive",
+      });
+    }
+  });
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -50,62 +90,86 @@ export default function CertificadosPage() {
         setUploadData({ ...uploadData, file });
         console.log('Certificate file selected:', file.name);
       } else {
-        alert('Por favor, selecione um arquivo .pfx ou .p12');
+        toast({
+          title: "Formato inválido",
+          description: "Por favor, selecione um arquivo .pfx ou .p12",
+          variant: "destructive",
+        });
       }
     }
   };
 
   const handleUploadSubmit = () => {
     if (!uploadData.file || !uploadData.password) {
-      alert('Por favor, selecione um arquivo e digite a senha');
+      toast({
+        title: "Dados incompletos",
+        description: "Por favor, selecione um arquivo e digite a senha",
+        variant: "destructive",
+      });
       return;
     }
     
     if (uploadData.password !== uploadData.confirmPassword) {
-      alert('As senhas não coincidem');
+      toast({
+        title: "Senhas não coincidem",
+        description: "Verifique se as senhas são idênticas",
+        variant: "destructive",
+      });
       return;
     }
     
     console.log('Uploading certificate:', uploadData.file.name);
-    // TODO: Implement actual certificate upload and validation
     
-    const newCert = {
-      id: Date.now().toString(),
-      name: uploadData.file.name.replace(/\.(pfx|p12)$/, ''),
-      issuer: 'Validando...',
-      validFrom: new Date().toISOString().split('T')[0],
-      validTo: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'valid' as const,
-      type: 'A3',
-      serialNumber: 'NOVO123456'
-    };
+    const formData = new FormData();
+    formData.append('file', uploadData.file);
+    formData.append('password', uploadData.password);
     
-    setCertificates([newCert, ...certificates]);
-    setUploadData({ file: null, password: '', confirmPassword: '' });
-    setIsUploadDialogOpen(false);
+    uploadCertificateMutation.mutate(formData);
   };
 
   const handleCertificateAction = (action: string, certId: string) => {
     console.log(`${action} certificate:`, certId);
     
     if (action === 'delete') {
-      setCertificates(prev => prev.filter(cert => cert.id !== certId));
+      if (confirm('Tem certeza que deseja excluir este certificado?')) {
+        deleteCertificateMutation.mutate(certId);
+      }
     }
-    // TODO: Implement other certificate actions
+    // TODO: Implement other certificate actions (view details)
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'valid':
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Válido</Badge>;
-      case 'expired':
-        return <Badge variant="destructive">Expirado</Badge>;
-      case 'revoked':
-        return <Badge variant="secondary">Revogado</Badge>;
-      default:
-        return <Badge variant="outline">Desconhecido</Badge>;
+  const getStatusBadge = (certificate: Certificate) => {
+    if (!certificate.validTo) {
+      return <Badge variant="outline">Validando</Badge>;
+    }
+    
+    const now = new Date();
+    const validTo = new Date(certificate.validTo);
+    
+    if (validTo > now) {
+      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Válido</Badge>;
+    } else {
+      return <Badge variant="destructive">Expirado</Badge>;
     }
   };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('pt-BR');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center py-12">
+            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Carregando certificados...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -116,81 +180,90 @@ export default function CertificadosPage() {
             <p className="text-muted-foreground">Gerencie seus certificados para assinatura digital</p>
           </div>
           
-          <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-upload-certificate">
-                <Upload className="w-4 h-4 mr-2" />
-                Novo Certificado
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Enviar Certificado Digital</DialogTitle>
-                <DialogDescription>
-                  Faça upload do seu certificado digital (.pfx ou .p12) para poder assinar documentos
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4">
-                <Alert>
-                  <Lock className="h-4 w-4" />
-                  <AlertDescription>
-                    Seus certificados são armazenados de forma segura e criptografada
-                  </AlertDescription>
-                </Alert>
-                
-                <div>
-                  <Label htmlFor="cert-file">Arquivo do Certificado (.pfx, .p12)</Label>
-                  <Input
-                    id="cert-file"
-                    type="file"
-                    accept=".pfx,.p12"
-                    onChange={handleFileUpload}
-                    data-testid="input-certificate-file"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="cert-password">Senha do Certificado</Label>
-                  <Input
-                    id="cert-password"
-                    type="password"
-                    placeholder="Digite a senha..."
-                    value={uploadData.password}
-                    onChange={(e) => setUploadData({ ...uploadData, password: e.target.value })}
-                    data-testid="input-certificate-password"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="cert-confirm-password">Confirmar Senha</Label>
-                  <Input
-                    id="cert-confirm-password"
-                    type="password"
-                    placeholder="Confirme a senha..."
-                    value={uploadData.confirmPassword}
-                    onChange={(e) => setUploadData({ ...uploadData, confirmPassword: e.target.value })}
-                    data-testid="input-certificate-confirm-password"
-                  />
-                </div>
-                
-                <Button 
-                  onClick={handleUploadSubmit} 
-                  className="w-full"
-                  disabled={!uploadData.file || !uploadData.password || !uploadData.confirmPassword}
-                  data-testid="button-submit-certificate"
-                >
-                  <Shield className="w-4 h-4 mr-2" />
-                  Enviar Certificado
+          <div className="flex gap-2">
+            <Button onClick={() => refetch()} variant="outline" data-testid="button-refresh-certificates">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Atualizar
+            </Button>
+            
+            <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-upload-certificate">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Novo Certificado
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Enviar Certificado Digital</DialogTitle>
+                  <DialogDescription>
+                    Faça upload do seu certificado digital (.pfx ou .p12) para poder assinar documentos
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  <Alert>
+                    <Lock className="h-4 w-4" />
+                    <AlertDescription>
+                      Seus certificados são armazenados de forma segura e criptografada
+                    </AlertDescription>
+                  </Alert>
+                  
+                  <div>
+                    <Label htmlFor="cert-file">Arquivo do Certificado (.pfx, .p12)</Label>
+                    <Input
+                      id="cert-file"
+                      type="file"
+                      accept=".pfx,.p12"
+                      onChange={handleFileUpload}
+                      data-testid="input-certificate-file"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="cert-password">Senha do Certificado</Label>
+                    <Input
+                      id="cert-password"
+                      type="password"
+                      placeholder="Digite a senha..."
+                      value={uploadData.password}
+                      onChange={(e) => setUploadData({ ...uploadData, password: e.target.value })}
+                      data-testid="input-certificate-password"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="cert-confirm-password">Confirmar Senha</Label>
+                    <Input
+                      id="cert-confirm-password"
+                      type="password"
+                      placeholder="Confirme a senha..."
+                      value={uploadData.confirmPassword}
+                      onChange={(e) => setUploadData({ ...uploadData, confirmPassword: e.target.value })}
+                      data-testid="input-certificate-confirm-password"
+                    />
+                  </div>
+                  
+                  <Button 
+                    onClick={handleUploadSubmit} 
+                    className="w-full"
+                    disabled={!uploadData.file || !uploadData.password || !uploadData.confirmPassword || uploadCertificateMutation.isPending}
+                    data-testid="button-submit-certificate"
+                  >
+                    <Shield className="w-4 h-4 mr-2" />
+                    {uploadCertificateMutation.isPending ? 'Enviando...' : 'Enviar Certificado'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="list" data-testid="tab-certificates-list">Meus Certificados</TabsTrigger>
+            <TabsTrigger value="list" data-testid="tab-certificates-list">
+              Meus Certificados ({certificates.length})
+            </TabsTrigger>
             <TabsTrigger value="info" data-testid="tab-certificates-info">Informações</TabsTrigger>
           </TabsList>
           
@@ -209,13 +282,17 @@ export default function CertificadosPage() {
                         <div className="space-y-1">
                           <h3 className="font-semibold">{certificate.name}</h3>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span>Emissor: {certificate.issuer}</span>
                             <span>Tipo: {certificate.type}</span>
-                            <span>Série: {certificate.serialNumber}</span>
+                            {certificate.serial && <span>Série: {certificate.serial}</span>}
                           </div>
                           <div className="flex items-center gap-4 text-sm">
-                            <span>Válido de {certificate.validFrom} até {certificate.validTo}</span>
-                            {getStatusBadge(certificate.status)}
+                            <span>
+                              Válido de {formatDate(certificate.validFrom)} até {formatDate(certificate.validTo)}
+                            </span>
+                            {getStatusBadge(certificate)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Criado em {formatDate(certificate.createdAt)}
                           </div>
                         </div>
                       </div>
@@ -233,6 +310,7 @@ export default function CertificadosPage() {
                           variant="outline" 
                           size="sm" 
                           onClick={() => handleCertificateAction('delete', certificate.id)}
+                          disabled={deleteCertificateMutation.isPending}
                           data-testid={`button-delete-${certificate.id}`}
                         >
                           <Trash2 className="w-4 h-4" />
