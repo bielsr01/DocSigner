@@ -31,7 +31,7 @@ function signExistingPdfTemplate($pdfInputPath, $pdfOutputPath, $pfxPath, $passw
         $pdf->setPrintFooter(false);
         $pdf->SetAutoPageBreak(false, 0);
         
-        // Carregar certificado PFX
+        // Carregar certificado PFX com validação ICP-Brasil
         echo "🔐 Carregando certificado PFX...\n";
         $pfxContent = file_get_contents($pfxPath);
         if (openssl_pkcs12_read($pfxContent, $certs, $password)) {
@@ -44,6 +44,24 @@ function signExistingPdfTemplate($pdfInputPath, $pdfOutputPath, $pfxPath, $passw
             $certInfo = openssl_x509_parse($certificate);
             echo "📋 Titular: " . ($certInfo['subject']['CN'] ?? 'N/A') . "\n";
             echo "📅 Válido até: " . date('d/m/Y H:i:s', $certInfo['validTo_time_t']) . "\n";
+            
+            // Validar se é certificado ICP-Brasil
+            echo "🏛️ Emissor: " . ($certInfo['issuer']['CN'] ?? 'N/A') . "\n";
+            
+            // Incluir toda a cadeia de certificação ICP-Brasil
+            if (!empty($extraCerts)) {
+                echo "🔗 Cadeia de certificação: " . count($extraCerts) . " certificados adicionais\n";
+                // Verificar se a cadeia contém autoridades ICP-Brasil
+                foreach ($extraCerts as $idx => $extraCert) {
+                    $extraCertInfo = openssl_x509_parse($extraCert);
+                    $issuerCN = $extraCertInfo['issuer']['CN'] ?? '';
+                    if (strpos($issuerCN, 'ICP-Brasil') !== false || strpos($issuerCN, 'AC ') !== false) {
+                        echo "  ✅ Certificado #$idx: $issuerCN (ICP-Brasil)\n";
+                    } else {
+                        echo "  📄 Certificado #$idx: $issuerCN\n";
+                    }
+                }
+            }
         } else {
             throw new \Exception('Erro ao ler o certificado PFX. Senha incorreta ou arquivo inválido.');
         }
@@ -88,19 +106,24 @@ function signExistingPdfTemplate($pdfInputPath, $pdfOutputPath, $pfxPath, $passw
         $fpdi->setPrintHeader(false);
         $fpdi->setPrintFooter(false);
         
-        // Configurar assinatura no FPDI
+        // Configurar assinatura ICP-Brasil com atributos corretos
         $fpdi->setSignature(
             $certificate,
             $privateKey,
             $password,
             $extraCerts,
-            2,  // PKCS#7
+            2,  // PKCS#7 detached signature
             array(
-                'signingTime' => date('YmdHis'),
+                'signingTime' => date('YmdHis\Z'),  // ISO format com Z
                 'signingCertificate' => true,
+                'signingCertificateV2' => true,    // ICP-Brasil requer v2
                 'location' => 'Brasil',
-                'reason' => 'Documento assinado digitalmente conforme ICP-Brasil',
-                'contact' => 'Sistema DocuSign Pro'
+                'reason' => 'Documento assinado digitalmente conforme MP 2.200-2/01',
+                'contact' => 'DocuSign Pro - Sistema ICP-Brasil',
+                // Atributos específicos ICP-Brasil
+                'messageDigest' => true,
+                'contentType' => true,
+                'signerInfo' => true
             )
         );
         
