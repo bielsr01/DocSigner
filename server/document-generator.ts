@@ -138,9 +138,9 @@ export class DocumentGenerator {
 
       console.log('✅ NOVO DocumentGenerator: PDF gerado com sucesso!');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ NOVO DocumentGenerator FALHOU:', error);
-      throw new Error(`Falha na geração do documento: ${error.message}`);
+      throw new Error(`Falha na geração do documento: ${error?.message || 'Erro desconhecido'}`);
     }
   }
 }
