@@ -154,7 +154,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 h-8 w-8"
                       onClick={() => setShowPassword(!showPassword)}
                       data-testid="button-toggle-password"
                     >
@@ -227,7 +227,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 h-8 w-8"
                       onClick={() => setShowRegisterPassword(!showRegisterPassword)}
                       data-testid="button-toggle-register-password"
                     >
@@ -258,7 +258,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 h-8 w-8"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       data-testid="button-toggle-confirm-password"
                     >

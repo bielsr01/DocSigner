@@ -21,6 +21,8 @@ export const templates = pgTable("templates", {
   name: text("name").notNull(),
   storageRef: text("storage_ref").notNull(), // Path to template file
   variables: text("variables").array().notNull().default(sql`'{}'::text[]`),
+  originalFilename: text("original_filename"),
+  mimeType: text("mime_type"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   userIdIdx: index("templates_user_id_idx").on(table.userId),
@@ -37,6 +39,8 @@ export const certificates = pgTable("certificates", {
   type: text("type").notNull().default("A3"), // A1, A3, etc.
   validFrom: text("valid_from"),
   validTo: text("valid_to"),
+  originalFilename: text("original_filename"),
+  mimeType: text("mime_type"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   userIdIdx: index("certificates_user_id_idx").on(table.userId),
