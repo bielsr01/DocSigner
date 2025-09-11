@@ -200,9 +200,7 @@ export class DocumentGenerator {
 
     switch (engine) {
       case ConverterEngine.LIBREOFFICE:
-        // ⏸️ TEMPORARIAMENTE PAUSADO PARA TESTES ONLYOFFICE
-        console.log('⏸️ LibreOffice pausado para testes - usando OnlyOffice Local ao invés');
-        await this.convertWithOnlyOfficeLocal(docxPath, outputDir);
+        await this.convertWithLibreOffice(docxPath, outputDir);
         break;
       
       case ConverterEngine.ONLYOFFICE_HTTP:
