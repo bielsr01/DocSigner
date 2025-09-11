@@ -11,11 +11,13 @@ import archiver from 'archiver';
 import { 
   insertUserSchema,
   insertTemplateSchema,
+  insertCertificateSchema,
   insertBatchSchema,
   insertDocumentSchema,
   insertActivityLogSchema
 } from "@shared/schema";
 import type { User } from "@shared/schema";
+import { CertificateReader } from "./pdf-signer";
 
 // Extend Express Request to include session user
 declare module 'express-session' {
@@ -311,6 +313,142 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Template download error:', error);
       res.status(500).json({ error: 'Failed to download template' });
+    }
+  });
+
+  // Certificates routes
+  app.get("/api/certificates", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      
+      const certificates = await storage.getCertificates(user.id);
+      res.json(certificates);
+    } catch (error) {
+      console.error("Get certificates error:", error);
+      res.status(500).json({ error: "Failed to get certificates" });
+    }
+  });
+
+  app.post("/api/certificates", requireAuth, upload.single('file'), async (req, res) => {
+    try {
+      const user = (req as any).user;
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'Certificate file is required' });
+      }
+      
+      // Validate file type
+      const extension = path.extname(req.file.originalname).toLowerCase();
+      if (!['.p12', '.pfx'].includes(extension)) {
+        return res.status(400).json({ error: 'Only .p12 and .pfx certificate files are supported' });
+      }
+      
+      // Parse certificate data from request body
+      const certificateData = {
+        name: req.body.name || path.parse(req.file.originalname).name,
+        storageRef: getStorageRef(req.file),
+        originalFilename: req.file.originalname,
+        mimeType: req.file.mimetype,
+        type: req.body.type || "A3"
+      };
+      
+      // Try to read certificate info if password provided
+      if (req.body.password) {
+        try {
+          const certInfo = await CertificateReader.getCertificateInfo(
+            certificateData.storageRef,
+            req.body.password
+          );
+          
+          if (certInfo.success && certInfo.info) {
+            (certificateData as any).serial = certInfo.info.serial;
+            (certificateData as any).validFrom = certInfo.info.validFrom;
+            (certificateData as any).validTo = certInfo.info.validTo;
+          }
+        } catch (certError) {
+          console.log('Warning: Could not read certificate info:', certError);
+          // Continue without certificate info - user can still upload
+        }
+      }
+      
+      const validatedData = insertCertificateSchema.parse(certificateData);
+      const certificate = await storage.createCertificate(validatedData, user.id);
+      
+      // Log activity
+      await storage.createActivityLog({
+        type: "certificate",
+        action: "certificate_uploaded",
+        refId: certificate.id,
+        status: "success",
+        message: `Certificate "${certificate.name}" uploaded successfully`,
+        details: certificate.serial ? `Serial: ${certificate.serial}` : 'Certificate uploaded'
+      }, user.id);
+      
+      res.json(certificate);
+    } catch (error) {
+      console.error("Create certificate error:", error);
+      res.status(400).json({ error: "Invalid certificate data" });
+    }
+  });
+
+  app.delete("/api/certificates/:id", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      
+      const deleted = await storage.deleteCertificate(req.params.id, user.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Certificate not found" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete certificate error:", error);
+      res.status(500).json({ error: "Failed to delete certificate" });
+    }
+  });
+
+  // Secure file download for certificates
+  app.get("/api/certificates/:id/download", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const certificate = await storage.getCertificate(req.params.id, user.id);
+      
+      if (!certificate) {
+        return res.status(404).json({ error: 'Certificate not found' });
+      }
+      
+      // Validate and secure the file path
+      const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+      const requestedPath = path.resolve(process.cwd(), certificate.storageRef);
+      
+      // Ensure the path is within uploads directory (prevent path traversal)
+      const relativePath = path.relative(uploadsRoot, requestedPath);
+      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+        console.error('Path traversal attempt detected:', certificate.storageRef);
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Check if file exists
+      if (!fs.existsSync(requestedPath)) {
+        return res.status(404).json({ error: 'File not found on disk' });
+      }
+      
+      const filePath = requestedPath;
+      
+      // Sanitize filename for security
+      const safeFilename = (certificate.originalFilename || 'certificate').replace(/[^a-zA-Z0-9._-]/g, '_');
+      
+      // Set appropriate headers with security measures
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);  
+      res.setHeader('Content-Type', certificate.mimeType || 'application/octet-stream');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error('Certificate download error:', error);
+      res.status(500).json({ error: 'Failed to download certificate' });
     }
   });
 
