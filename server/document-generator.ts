@@ -124,7 +124,7 @@ export class DocumentGenerator {
       }, userId);
 
       try {
-        await this.signPdfWithCertificate(outputPath, certificate, storage, userId);
+        await this.signPdfWithCertificate(outputPath, certificate, storage, userId, documentId);
         
         // Atualizar assinatura como concluída
         await storage.updateSignature(signature.id, {
@@ -1053,7 +1053,8 @@ builder.CloseFile();
     pdfPath: string,
     certificate: any,
     storage: IStorage,
-    userId: string
+    userId: string,
+    documentId?: string
   ): Promise<void> {
     console.log('🔐 Iniciando assinatura digital do PDF...');
     console.log(`PDF: ${pdfPath}`);
@@ -1240,13 +1241,55 @@ builder.CloseFile();
       const signedFileSize = fs.statSync(tempSignedPath).size;
       console.log(`✅ PDF assinado criado: ${signedFileSize} bytes`);
 
-      // Substituir o PDF original pelo PDF assinado
-      fs.copyFileSync(tempSignedPath, pdfPath);
-      console.log(`✅ PDF original substituído pelo PDF assinado: ${pdfPath}`);
+      // CORREÇÃO CRÍTICA: Substituir arquivo FINAL em uploads/documents
+      console.log(`🔧 DEBUG - tempSignedPath: ${tempSignedPath}`);
+      console.log(`🔧 DEBUG - pdfPath (destino): ${pdfPath}`);
+      
+      // CORREÇÃO CIRÚRGICA: Usar outputPath original (que vem de generateAndSignDocument)
+      // Este é o caminho ABSOLUTO correto que o download usa
+      const documentInfo = await storage.getDocument(documentId, userId);
+      if (!documentInfo) {
+        throw new Error('Documento não encontrado no storage');
+      }
+      
+      // Reconstruir caminho absoluto correto
+      const finalOutputPath = path.resolve(documentInfo.storageRef || `uploads/documents/${documentInfo.filename}`);
+      console.log(`🔧 DEBUG - finalOutputPath (arquivo final): ${finalOutputPath}`);
+      
+      console.log(`🔄 Copiando arquivo assinado para destino FINAL...`);
+      console.log(`   De: ${tempSignedPath} (${fs.statSync(tempSignedPath).size} bytes)`);
+      console.log(`   Para: ${finalOutputPath}`);
+      
+      // SUBSTITUIÇÃO ATÔMICA usando rename (mais seguro que copy)
+      try {
+        fs.renameSync(tempSignedPath, finalOutputPath);
+        console.log(`✅ PDF FINAL substituído ATOMICAMENTE pelo PDF assinado: ${finalOutputPath}`);
+      } catch (renameError: any) {
+        console.warn(`⚠️ Rename falhou, usando copy: ${renameError.message}`);
+        fs.copyFileSync(tempSignedPath, finalOutputPath);
+        console.log(`✅ PDF FINAL substituído via COPY: ${finalOutputPath}`);
+      }
 
       // Verificar o tamanho final
-      const finalFileSize = fs.statSync(pdfPath).size;
+      const finalFileSize = fs.statSync(finalOutputPath).size;
       console.log(`📊 Tamanho final do PDF assinado: ${finalFileSize} bytes`);
+      
+      // VERIFICAÇÃO CRÍTICA: Confirmar que arquivo final tem assinatura
+      const finalFileContent = fs.readFileSync(finalOutputPath).toString('binary');
+      const hasSignatureInFinal = finalFileContent.includes('/ByteRange') && finalFileContent.includes('/Contents');
+      console.log(`🔍 Verificação final - Arquivo tem assinatura: ${hasSignatureInFinal ? '✅ SIM' : '❌ NÃO'}`);
+      
+      if (!hasSignatureInFinal) {
+        throw new Error('ERRO CRÍTICO: Arquivo final não contém estrutura de assinatura!');
+      }
+      
+      // Atualizar storageRef no banco para garantir consistência
+      if (documentId) {
+        await storage.updateDocument(documentId, {
+          storageRef: finalOutputPath
+        }, userId);
+        console.log(`✅ StorageRef atualizado no banco: ${finalOutputPath}`);
+      }
 
     } catch (signError: any) {
       console.error('❌ Erro na assinatura PHP:', {
