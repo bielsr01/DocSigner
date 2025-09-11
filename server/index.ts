@@ -4,6 +4,12 @@ import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+// Configure environment variables
+if (!process.env.CERTIFICATE_ENCRYPTION_KEY) {
+  process.env.CERTIFICATE_ENCRYPTION_KEY = "DocuSignProSecureKey2025!";
+  console.log("🔐 Environment: CERTIFICATE_ENCRYPTION_KEY configured automatically");
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
