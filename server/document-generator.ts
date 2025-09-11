@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as crypto from 'crypto';
 import jwt from 'jsonwebtoken';
@@ -1108,7 +1108,7 @@ builder.CloseFile();
       console.log(`Certificate: ${certificate.storageRef}`);
 
       // SEGURANÇA: Executar script PHP sem senha em argumentos CLI
-      const phpArgs = [
+      let phpArgs = [
         phpScriptPath,
         '--input', pdfPath,
         '--output', tempSignedPath,
@@ -1117,9 +1117,43 @@ builder.CloseFile();
 
       console.log(`🔧 Comando PHP (senha via STDIN): php ${phpArgs.join(' ')}`);
 
-      // SECURITY: Executar PHP e enviar senha via STDIN para segurança
-      const { spawn } = require('child_process');
+      // WORKAROUND FPDI: Converter PDF para versão compatível usando Ghostscript
+      console.log('🔄 Convertendo PDF para versão compatível (FPDI workaround)...');
+      const compatiblePdf = path.join(tempDir, `compatible_${Date.now()}.pdf`);
       
+      try {
+        const gsArgs = [
+          '-sDEVICE=pdfwrite',
+          '-dCompatibilityLevel=1.4',
+          '-dNOPAUSE',
+          '-dQUIET', 
+          '-dBATCH',
+          `-sOutputFile=${compatiblePdf}`,
+          pdfPath
+        ];
+        
+        console.log(`📝 Ghostscript: gs ${gsArgs.join(' ')}`);
+        await execFileAsync('gs', gsArgs, { timeout: 30000 });
+        
+        if (!fs.existsSync(compatiblePdf)) {
+          throw new Error('Ghostscript falhou em converter PDF');
+        }
+        
+        console.log(`✅ PDF convertido para versão compatível: ${compatiblePdf}`);
+        
+        // Atualizar args do PHP para usar PDF compatível
+        phpArgs = [
+          phpScriptPath,
+          '--input', compatiblePdf,
+          '--output', tempSignedPath,
+          '--cert', certificate.storageRef
+        ];
+      } catch (gsError) {
+        console.warn('⚠️ Ghostscript falhou, tentando PDF original:', gsError);
+        // Continuar com PDF original se Ghostscript falhar
+      }
+
+      // SECURITY: Executar PHP e enviar senha via STDIN para segurança
       const phpProcess = spawn('php', phpArgs, {
         cwd: path.dirname(phpScriptPath),
         stdio: ['pipe', 'pipe', 'pipe'],
