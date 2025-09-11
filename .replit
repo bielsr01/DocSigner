@@ -4,6 +4,7 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["libreoffice"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -15,7 +16,7 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 41569
+localPort = 41053
 externalPort = 3002
 
 [[ports]]
