@@ -11,17 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
-interface Template {
-  id: string;
-  name: string;
-  variables: string[];
-  originalFilename?: string;
-  mimeType?: string;
-  createdAt: string;
-  storageRef: string;
-  description?: string;
-  fileSize?: string;
-}
+import type { Template } from "@shared/schema";
 
 export default function ModelosPage() {
   const [searchTerm, setSearchTerm] = useState('');

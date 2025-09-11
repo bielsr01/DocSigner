@@ -85,10 +85,10 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async createUser(user: InsertUser): Promise<User> {
+  async createUser(user: InsertUser & { passwordHash: string }): Promise<User> {
     const result = await db.insert(users).values({
       username: user.username,
-      passwordHash: user.password, // This will be hashed at the route level
+      passwordHash: user.passwordHash,
       email: user.email,
       name: user.name,
       role: user.role || "user",
