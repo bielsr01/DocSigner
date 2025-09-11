@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import express from "express";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
-import { upload, uploadFiles, getStorageRef } from "./upload";
+import { upload, uploadFiles, debugUpload, getStorageRef } from "./upload";
 import { DocumentGenerator } from "./document-generator";
 import fs from 'fs';
 import path from 'path';
@@ -508,8 +508,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Upload and sign PDFs endpoint
-  app.post("/api/documents/upload-and-sign", requireAuth, upload.array('files', 10), async (req, res) => {
+  // Upload and sign PDFs endpoint - FIXED VERSION
+  app.post("/api/documents/upload-and-sign", requireAuth, (req, res, next) => {
+    console.log('🚀 Starting upload middleware...');
+    console.log('📥 Request headers:', JSON.stringify(req.headers, null, 2));
+    console.log('📦 Content-Type:', req.get('Content-Type'));
+    
+    // Use debug upload for now
+    debugUpload.array('files', 10)(req, res, (err) => {
+      if (err) {
+        console.error('❌ Multer error:', err);
+        return res.status(400).json({ error: 'Upload failed: ' + err.message });
+      }
+      console.log('✅ Multer processed successfully');
+      next();
+    });
+  }, async (req, res) => {
     try {
       const user = (req as any).user;
       const { certificateId } = req.body;

@@ -69,21 +69,38 @@ export const upload = multer({
   }
 });
 
-// Alternative upload handler for problematic routes
+// Alternative upload handler for problematic routes - ENHANCED VERSION
 export const uploadFiles = multer({
   dest: 'uploads/documents',
   limits: {
-    fileSize: 10 * 1024 * 1024,
-    files: 10
+    fileSize: 10 * 1024 * 1024, // 10MB
+    files: 10,
+    fieldSize: 1024 * 1024, // 1MB field size  
+    fieldNameSize: 100,
+    parts: 20
   },
   fileFilter: (req, file, cb) => {
+    console.log('🔍 uploadFiles fileFilter called for:', file.originalname, 'type:', file.mimetype);
     if (file.mimetype === 'application/pdf') {
+      console.log('✅ PDF accepted by uploadFiles:', file.originalname);
       cb(null, true);
     } else {
+      console.log('❌ File rejected by uploadFiles (not PDF):', file.originalname, file.mimetype);
       cb(new Error('Only PDF files are allowed'));
     }
   }
 });
+
+// DEBUG: Ultra-simple upload for testing
+export const debugUpload = multer({
+  dest: 'uploads/documents',
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB for debugging
+    files: 20
+  }
+});
+
+console.log('📦 Enhanced upload handlers configured');
 
 // Helper function to get file path for storage reference
 export const getStorageRef = (file: Express.Multer.File): string => {
