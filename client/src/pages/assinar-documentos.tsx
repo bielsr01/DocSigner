@@ -99,9 +99,8 @@ export default function AssinarDocumentosPage() {
         console.log(`  ${key}:`, value instanceof File ? `File: ${value.name}` : value);
       });
       
-      // Test with direct endpoint first
-      console.log('🧪 Testing direct upload...');
-      return apiRequest('POST', '/api/test-upload-direct', formData);
+      console.log('📤 Sending to main upload endpoint...');
+      return apiRequest('POST', '/api/documents/upload-and-sign', formData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents/uploaded'] });
