@@ -154,7 +154,7 @@ export default function CertificadosPage() {
     }
   };
 
-  const formatDate = (dateString: string | null) => {
+  const formatDate = (dateString: string | Date | null) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
