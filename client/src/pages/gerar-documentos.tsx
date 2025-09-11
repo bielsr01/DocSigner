@@ -22,11 +22,16 @@ interface Template {
   storageRef: string;
 }
 
-// TODO: Replace with real data from API
-const mockCertificates = [
-  { id: '1', name: 'Certificado Empresa LTDA (A3)', status: 'valid', validTo: '2025-01-01' },
-  { id: '2', name: 'Certificado Pessoal (A1)', status: 'valid', validTo: '2024-12-15' }
-];
+interface Certificate {
+  id: string;
+  name: string;
+  type: string;
+  validTo: string;
+  validFrom: string;
+  serial?: string;
+  originalFilename?: string;
+  createdAt: string;
+}
 
 export default function GerarDocumentosPage() {
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -45,6 +50,12 @@ export default function GerarDocumentosPage() {
     queryKey: ['/api/templates'],
     enabled: true
   }) as { data: Template[]; isLoading: boolean };
+
+  // Fetch certificates from API
+  const { data: certificates = [], isLoading: certificatesLoading } = useQuery({
+    queryKey: ['/api/certificates'],
+    enabled: true
+  }) as { data: Certificate[]; isLoading: boolean };
   
   // Configuration states
   const [batchName, setBatchName] = useState('');
@@ -68,7 +79,12 @@ export default function GerarDocumentosPage() {
   }>>([]);
 
   const selectedTemplateData = templates.find(t => t.id === selectedTemplate);
-  const validCertificates = mockCertificates.filter(cert => cert.status === 'valid');
+  const validCertificates = certificates.filter(cert => {
+    // Check if certificate is still valid
+    const validToDate = new Date(cert.validTo);
+    const now = new Date();
+    return validToDate > now;
+  });
 
   // Auto-select certificate if only one is available
   useEffect(() => {
