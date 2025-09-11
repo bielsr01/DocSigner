@@ -812,7 +812,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get all documents in this batch with status 'ready'
-      const documents = await storage.getDocuments({ batchId: req.params.id });
+      const allDocuments = await storage.getDocuments(user.id);
+      const documents = allDocuments.filter((doc: any) => doc.batchId === req.params.id);
       if (!documents || documents.length === 0) {
         return res.status(404).json({ error: "No documents found in this batch" });
       }
@@ -856,6 +857,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const document of readyDocuments) {
         try {
           // Validate and secure the file path (prevent path traversal)
+          if (!document.storageRef) {
+            console.error('Document has no storageRef:', document.id);
+            continue;
+          }
           const requestedPath = path.resolve(process.cwd(), document.storageRef);
           const relativePath = path.relative(uploadsRoot, requestedPath);
           
