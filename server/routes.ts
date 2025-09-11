@@ -473,6 +473,190 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get only uploaded documents (not generated from templates)
+  app.get("/api/documents/uploaded", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      
+      const documents = await storage.getDocuments(user.id);
+      // Filter to only show documents with source='upload' (uploaded PDFs)
+      const uploadedDocuments = documents.filter(doc => 
+        doc.source === 'upload' || (doc.templateId === null && doc.batchId === null)
+      );
+      res.json(uploadedDocuments);
+    } catch (error) {
+      console.error("Uploaded documents fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch uploaded documents" });
+    }
+  });
+
+  // Upload and sign PDFs endpoint
+  app.post("/api/documents/upload-and-sign", requireAuth, upload.array('files', 10), async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const { certificateId } = req.body;
+      const files = req.files as Express.Multer.File[];
+      
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: 'No files uploaded' });
+      }
+      
+      if (!certificateId) {
+        return res.status(400).json({ error: 'Certificate ID is required' });
+      }
+      
+      // Validate all files are PDFs
+      const invalidFiles = files.filter(file => !file.mimetype.includes('pdf'));
+      if (invalidFiles.length > 0) {
+        return res.status(400).json({ error: 'Only PDF files are allowed' });
+      }
+      
+      const results = [];
+      
+      for (const file of files) {
+        try {
+          // Create document record with source='upload'
+          const document = await storage.createDocument({
+            templateId: null, // No template for uploaded docs
+            batchId: null, // No batch for individual uploads
+            filename: file.filename,
+            status: 'processing',
+            storageRef: file.path,
+            variables: null,
+            source: 'upload',
+            originalFilename: file.originalname,
+            mimeType: file.mimetype
+          }, user.id);
+          
+          console.log(`📄 Created uploaded document: ${document.filename} (ID: ${document.id})`);
+          
+          // Sign the PDF immediately using the new signUploadedPDF function
+          try {
+            // Create signature record (processing status)
+            const signature = await storage.createSignature({
+              documentId: document.id,
+              certificateId: certificateId,
+              provider: 'FPDI/TCPDF',
+              status: 'processing'
+            }, user.id);
+            
+            const signatureResult = await DocumentGenerator.signUploadedPDF(
+              file.path,
+              user.id,
+              document.id,
+              certificateId,
+              storage
+            );
+            
+            if (signatureResult.success) {
+              // Update document status to signed
+              await storage.updateDocument(document.id, {
+                status: 'signed',
+                storageRef: signatureResult.signedPath
+              }, user.id);
+              
+              // Update signature status to completed
+              await storage.updateSignature(signature.id, {
+                status: 'completed',
+                signedAt: new Date()
+              }, user.id);
+              
+              console.log(`✅ Successfully signed uploaded document: ${document.filename}`);
+              
+              // Log success activity
+              await storage.createActivityLog({
+                type: "document",
+                action: "pdf_uploaded_signed",
+                refId: document.id,
+                status: "success",
+                message: `PDF "${document.filename}" uploaded and signed successfully`,
+                details: `Signed with certificate: ${certificateId}`,
+                documentName: document.filename
+              }, user.id);
+              
+              results.push({
+                success: true,
+                document: await storage.getDocument(document.id, user.id),
+                filename: document.filename
+              });
+            } else {
+              // Update document status to failed
+              await storage.updateDocument(document.id, { status: 'failed' }, user.id);
+              
+              // Update signature status to failed
+              await storage.updateSignature(signature.id, {
+                status: 'failed',
+                errorMessage: signatureResult.error || 'Unknown signing error'
+              }, user.id);
+              
+              // Log failure activity
+              await storage.createActivityLog({
+                type: "document",
+                action: "pdf_upload_sign_failed",
+                refId: document.id,
+                status: "error",
+                message: `Failed to sign uploaded PDF "${document.filename}"`,
+                details: signatureResult.error || 'Unknown signing error',
+                documentName: document.filename
+              }, user.id);
+              
+              results.push({
+                success: false,
+                filename: document.filename,
+                error: signatureResult.error
+              });
+            }
+          } catch (signingError) {
+            console.error(`Signing error for ${document.filename}:`, signingError);
+            await storage.updateDocument(document.id, { status: 'failed' }, user.id);
+            
+            // Update signature to failed if it was created
+            try {
+              const signature = await storage.createSignature({
+                documentId: document.id,
+                certificateId: certificateId,
+                provider: 'FPDI/TCPDF',
+                status: 'failed',
+                errorMessage: signingError instanceof Error ? signingError.message : 'Signing process failed'
+              }, user.id);
+            } catch (signatureCreateError) {
+              console.warn('Failed to create signature record for failed document:', signatureCreateError);
+            }
+            
+            results.push({
+              success: false,
+              filename: document.filename,
+              error: 'Signing process failed'
+            });
+          }
+        } catch (documentError) {
+          console.error(`Error processing file ${file.originalname}:`, documentError);
+          results.push({
+            success: false,
+            filename: file.originalname,
+            error: 'Failed to process file'
+          });
+        }
+      }
+      
+      // Return results
+      const successCount = results.filter(r => r.success).length;
+      const failureCount = results.filter(r => !r.success).length;
+      
+      res.json({
+        success: successCount > 0,
+        message: `${successCount} document(s) uploaded and signed successfully, ${failureCount} failed`,
+        results,
+        totalProcessed: results.length,
+        successful: successCount,
+        failed: failureCount
+      });
+    } catch (error) {
+      console.error('Upload and sign error:', error);
+      res.status(500).json({ error: 'Failed to upload and sign documents' });
+    }
+  });
+
   app.post("/api/documents/generate", requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;

@@ -1247,7 +1247,7 @@ builder.CloseFile();
       
       // CORREÇÃO CIRÚRGICA: Usar outputPath original (que vem de generateAndSignDocument)
       // Este é o caminho ABSOLUTO correto que o download usa
-      const documentInfo = await storage.getDocument(documentId, userId);
+      const documentInfo = documentId ? await storage.getDocument(documentId, userId) : null;
       if (!documentInfo) {
         throw new Error('Documento não encontrado no storage');
       }
@@ -1325,5 +1325,45 @@ builder.CloseFile();
     }
 
     console.log('✅ Assinatura digital concluída com sucesso');
+  }
+
+  /**
+   * Assina um PDF existente (enviado via upload) usando certificado digital
+   * Esta função é específica para PDFs que já existem e só precisam ser assinados
+   */
+  static async signUploadedPDF(
+    pdfPath: string,
+    userId: string,
+    documentId: string,
+    certificateId: string,
+    storage: IStorage
+  ): Promise<{success: boolean; signedPath?: string; error?: string}> {
+    try {
+      console.log('🔐 DocumentGenerator: Assinando PDF enviado via upload...');
+      console.log(`PDF: ${pdfPath}`);
+      console.log(`User ID: ${userId}`);
+      console.log(`Document ID: ${documentId}`);
+      
+      // Buscar certificado ativo do usuário
+      const certificate = await storage.getCertificate(certificateId, userId);
+      if (!certificate) {
+        return { success: false, error: 'Certificate not found' };
+      }
+      
+      console.log(`✅ Certificado encontrado: ${certificate.name} (${certificate.type})`);
+      
+      // Assinar o PDF usando a função privada existente
+      await this.signPdfWithCertificate(pdfPath, certificate, storage, userId, documentId);
+      
+      console.log('✅ PDF assinado com sucesso');
+      return { success: true, signedPath: pdfPath };
+      
+    } catch (error) {
+      console.error('❌ Erro ao assinar PDF enviado:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown signing error' 
+      };
+    }
   }
 }
