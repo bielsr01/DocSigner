@@ -5,17 +5,14 @@ import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { upload, getStorageRef } from "./upload";
 import { DocumentGenerator } from "./document-generator";
-import { PDFSigner } from "./pdf-signer";
 import fs from 'fs';
 import path from 'path';
 import archiver from 'archiver';
 import { 
   insertUserSchema,
   insertTemplateSchema,
-  insertCertificateSchema,
   insertBatchSchema,
   insertDocumentSchema,
-  insertSignatureSchema,
   insertActivityLogSchema
 } from "@shared/schema";
 import type { User } from "@shared/schema";
@@ -317,150 +314,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Certificates routes
-  app.get("/api/certificates", requireAuth, async (req, res) => {
-    try {
-      const user = (req as any).user;
-      
-      const certificates = await storage.getCertificates(user.id);
-      res.json(certificates);
-    } catch (error) {
-      console.error("Get certificates error:", error);
-      res.status(500).json({ error: "Failed to get certificates" });
-    }
-  });
 
-  app.post("/api/certificates", requireAuth, upload.single('file'), async (req, res) => {
-    try {
-      const user = (req as any).user;
-      
-      if (!req.file) {
-        return res.status(400).json({ error: 'Certificate file is required' });
-      }
-      
-      // Extract real certificate information
-      const certificatePath = path.join(process.cwd(), getStorageRef(req.file));
-      const certificatePassword = req.body.password || ''; // Get password from form
-      
-      let certificateInfo = {
-        subject: 'Unknown',
-        issuer: 'Unknown',
-        validFrom: null as string | null,
-        validTo: null as string | null,
-        serial: null as string | null,
-        type: 'A1'
-      };
-      
-      if (certificatePassword) {
-        try {
-          const certInfo = await PDFSigner.getCertificateInfo(certificatePath, certificatePassword);
-          if (certInfo.success && certInfo.info) {
-            certificateInfo = {
-              subject: certInfo.info.subject || 'Unknown',
-              issuer: certInfo.info.issuer || 'Unknown', 
-              validFrom: certInfo.info.validFrom || null,
-              validTo: certInfo.info.validTo || null,
-              serial: certInfo.info.serial || null,
-              type: certInfo.info.issuer?.includes('ICP-Brasil') ? 'A3' : 'A1'
-            };
-          }
-        } catch (error) {
-          console.log('Could not extract certificate info, using defaults:', error);
-        }
-      }
 
-      // Parse certificate data from request body with extracted info
-      const certificateData = {
-        name: req.body.name,
-        type: certificateInfo.type,
-        serial: certificateInfo.serial,
-        validFrom: certificateInfo.validFrom,
-        validTo: certificateInfo.validTo,
-        storageRef: getStorageRef(req.file),
-        originalFilename: req.file.originalname,
-        mimeType: req.file.mimetype
-      };
-      
-      const validatedData = insertCertificateSchema.parse(certificateData);
-      const certificate = await storage.createCertificate(validatedData, user.id);
-      
-      // Log activity
-      await storage.createActivityLog({
-        type: "certificate",
-        action: "certificate_uploaded",
-        refId: certificate.id,
-        status: "success",
-        message: `Certificate "${certificate.name}" added successfully`,
-        details: `Certificate ${certificate.type} valid until ${certificate.validTo || 'unknown'}`
-      }, user.id);
-      
-      res.json(certificate);
-    } catch (error) {
-      console.error("Create certificate error:", error);
-      res.status(400).json({ error: "Invalid certificate data" });
-    }
-  });
 
-  app.delete("/api/certificates/:id", requireAuth, async (req, res) => {
-    try {
-      const user = (req as any).user;
-      
-      const deleted = await storage.deleteCertificate(req.params.id, user.id);
-      if (!deleted) {
-        return res.status(404).json({ error: "Certificate not found" });
-      }
-      
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Delete certificate error:", error);
-      res.status(500).json({ error: "Failed to delete certificate" });
-    }
-  });
-
-  // Secure file download for certificates
-  app.get("/api/certificates/:id/download", requireAuth, async (req, res) => {
-    try {
-      const user = (req as any).user;
-      const certificate = await storage.getCertificate(req.params.id, user.id);
-      
-      if (!certificate) {
-        return res.status(404).json({ error: 'Certificate not found' });
-      }
-      
-      // Validate and secure the file path
-      const uploadsRoot = path.resolve(process.cwd(), 'uploads');
-      const requestedPath = path.resolve(process.cwd(), certificate.storageRef);
-      
-      // Ensure the path is within uploads directory (prevent path traversal)
-      const relativePath = path.relative(uploadsRoot, requestedPath);
-      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-        console.error('Path traversal attempt detected:', certificate.storageRef);
-        return res.status(403).json({ error: 'Access denied' });
-      }
-      
-      // Check if file exists
-      if (!fs.existsSync(requestedPath)) {
-        return res.status(404).json({ error: 'File not found on disk' });
-      }
-      
-      const filePath = requestedPath;
-      
-      // Sanitize filename for security
-      const safeFilename = (certificate.originalFilename || 'certificate').replace(/[^a-zA-Z0-9._-]/g, '_');
-      
-      // Set appropriate headers with security measures
-      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);  
-      res.setHeader('Content-Type', certificate.mimeType || 'application/octet-stream');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-      
-      // Stream the file
-      const fileStream = fs.createReadStream(filePath);
-      fileStream.pipe(res);
-    } catch (error) {
-      console.error('Certificate download error:', error);
-      res.status(500).json({ error: 'Failed to download certificate' });
-    }
-  });
 
   // Documents routes
   app.get("/api/documents", requireAuth, async (req, res) => {
@@ -583,12 +439,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           successCount++;
           console.log(`✅ PDF generation successful for: ${document.filename}`)
           
-          // Create signature for automatic processing only on success
-          await storage.createSignature({
-            documentId: document.id,
-            provider: "FPDI/TCPDF",
-            status: "processing"
-          }, user.id);
           
         } catch (pdfError) {
           console.error(`❌ PDF generation failed for document ${document.id} (${document.filename}):`, pdfError);
@@ -647,110 +497,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
-  // Document signing route
-  app.post("/api/documents/:id/sign", requireAuth, async (req, res) => {
-    try {
-      const user = (req as any).user;
-      const { certificateId, certificatePassword } = req.body;
-      
-      if (!certificateId || !certificatePassword) {
-        return res.status(400).json({ error: "Certificate ID and password are required" });
-      }
-      
-      // Get document
-      const document = await storage.getDocument(req.params.id, user.id);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
-      }
-      
-      if (!document.storageRef) {
-        return res.status(400).json({ error: "Document file not found" });
-      }
-      
-      // Get certificate
-      const certificate = await storage.getCertificate(certificateId, user.id);
-      if (!certificate) {
-        return res.status(404).json({ error: "Certificate not found" });
-      }
-      
-      // Create signature record
-      const signature = await storage.createSignature({
-        documentId: document.id,
-        certificateId: certificate.id,
-        provider: "signpdf",
-        status: "processing"
-      }, user.id);
-      
-      try {
-        // Sign the PDF
-        const inputPath = path.resolve(process.cwd(), document.storageRef);
-        const outputPath = path.resolve(process.cwd(), `uploads/signed/signed_${document.id}.pdf`);
-        const certificatePath = path.resolve(process.cwd(), certificate.storageRef);
-        
-        const result = await PDFSigner.signPDF(inputPath, outputPath, {
-          certificatePath,
-          certificatePassword,
-          reason: `Assinado digitalmente usando ${certificate.name}`,
-          location: "Brasil",
-          contactInfo: user.email || ""
-        });
-        
-        if (result.success && result.signedPdfPath) {
-          // Update signature as completed
-          await storage.updateSignature(signature.id, {
-            status: "completed",
-            signedAt: new Date()
-          }, user.id);
-          
-          // Update document with signed version
-          await storage.updateDocument(document.id, {
-            status: "signed",
-            storageRef: `uploads/signed/signed_${document.id}.pdf`
-          }, user.id);
-          
-          // Log activity
-          await storage.createActivityLog({
-            type: "signature",
-            action: "document_signed",
-            refId: document.id,
-            status: "success",
-            message: `Document "${document.filename}" signed successfully`,
-            details: `Using certificate "${certificate.name}"`
-          }, user.id);
-          
-          res.json({
-            message: "Document signed successfully",
-            signature,
-            signedPath: result.signedPdfPath
-          });
-          
-        } else {
-          // Update signature as failed
-          await storage.updateSignature(signature.id, {
-            status: "failed",
-            errorMessage: result.error
-          }, user.id);
-          
-          res.status(500).json({ error: result.error || "Failed to sign document" });
-        }
-        
-      } catch (signingError) {
-        console.error("Signing error:", signingError);
-        
-        // Update signature as failed
-        await storage.updateSignature(signature.id, {
-          status: "failed",
-          errorMessage: signingError instanceof Error ? signingError.message : "Signing failed"
-        }, user.id);
-        
-        res.status(500).json({ error: "PDF signing failed" });
-      }
-      
-    } catch (error) {
-      console.error("Sign document error:", error);
-      res.status(500).json({ error: "Failed to sign document" });
-    }
-  });
 
   // Document download route
   app.get("/api/documents/:id/download", requireAuth, async (req, res) => {
@@ -909,66 +655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PDF signature verification route
-  app.get("/api/documents/:id/verify", requireAuth, async (req, res) => {
-    try {
-      const user = (req as any).user;
-      
-      const document = await storage.getDocument(req.params.id, user.id);
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
-      }
-      
-      if (!document.storageRef) {
-        return res.status(400).json({ error: "Document file not found" });
-      }
-      
-      const pdfPath = path.resolve(process.cwd(), document.storageRef);
-      const verification = await PDFSigner.verifySignatures(pdfPath);
-      
-      res.json({
-        document: document.filename,
-        verification
-      });
-      
-    } catch (error) {
-      console.error("Verify document error:", error);
-      res.status(500).json({ error: "Failed to verify document" });
-    }
-  });
 
-  // Signatures routes
-  app.get("/api/signatures", requireAuth, async (req, res) => {
-    try {
-      const user = (req as any).user;
-      
-      const signatures = await storage.getSignatures(user.id);
-      res.json(signatures);
-    } catch (error) {
-      console.error("Get signatures error:", error);
-      res.status(500).json({ error: "Failed to get signatures" });
-    }
-  });
-
-  app.post("/api/signatures/:id/retry", requireAuth, async (req, res) => {
-    try {
-      const user = (req as any).user;
-      
-      const signature = await storage.updateSignature(req.params.id, {
-        status: "processing",
-        errorMessage: null
-      }, user.id);
-      
-      if (!signature) {
-        return res.status(404).json({ error: "Signature not found" });
-      }
-      
-      res.json(signature);
-    } catch (error) {
-      console.error("Retry signature error:", error);
-      res.status(500).json({ error: "Failed to retry signature" });
-    }
-  });
 
   // Activity log routes
   app.get("/api/activity", requireAuth, async (req, res) => {
