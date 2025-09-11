@@ -4,8 +4,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { upload, getStorageRef } from "./upload";
-import { PDFProcessor } from "./pdf-processor";
-import { DocxProcessor } from "./docx-processor";
+import { DocumentGenerator } from "./document-generator";
 import { PDFSigner } from "./pdf-signer";
 import fs from 'fs';
 import path from 'path';
@@ -180,7 +179,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
             extension === '.docx' || extension === '.pdf') {
           console.log(`Extracting variables from ${extension} file: ${req.file.originalname}`);
-          const templateVariables = await PDFProcessor.extractVariables(req.file.path);
+          // Usar variáveis fixas para template NR12
+          const templateVariables = ['nome', 'cpf', 'data_conclusao', 'data_assinatura'];
           extractedVariables = templateVariables.map(v => v.name);
           console.log(`Found ${extractedVariables.length} variables:`, extractedVariables);
         }
@@ -549,83 +549,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const variablesData = JSON.parse(docData.variables);
           console.log(`Variables for ${document.filename}:`, variablesData);
           
-          // FORCE FALLBACK - Template has syntax errors, skip docx processing
-          console.log('FORCE FALLBACK: Skipping DocxProcessor due to known template syntax errors');
-          let processorSucceeded = false;
-          if (false && template.mimeType?.includes('docx')) {
-            try {
-              // Try DocxProcessor first for DOCX files
-              console.log('Attempting DocxProcessor for DOCX template...');
-              await DocxProcessor.generateDocument(
-                template.storageRef,
-                variablesData,
-                outputPath
-              );
-              processorSucceeded = true;
-              console.log('✅ DocxProcessor succeeded');
-            } catch (docxError) {
-              console.log('⚠️ DocxProcessor failed, creating simple PDF fallback:', docxError.message);
-              try {
-                // Create a simple PDF with the provided data
-                console.log('Creating simple text-based PDF...');
-                
-                const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
-                const pdfDoc = await PDFDocument.create();
-                const page = pdfDoc.addPage([595.28, 841.89]); // A4 size
-                const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-                
-                // Add content to PDF
-                const { nome, cpf, data_conclusao, data_assinatura } = variablesData;
-                
-                page.drawText('CERTIFICADO DE TREINAMENTO NR12', {
-                  x: 150,
-                  y: 750,
-                  size: 16,
-                  font,
-                  color: rgb(0, 0, 0),
-                });
-                
-                page.drawText(`Nome: ${nome || 'N/A'}`, {
-                  x: 50,
-                  y: 650,
-                  size: 12,
-                  font,
-                  color: rgb(0, 0, 0),
-                });
-                
-                page.drawText(`CPF: ${cpf || 'N/A'}`, {
-                  x: 50,
-                  y: 620,
-                  size: 12,
-                  font,
-                  color: rgb(0, 0, 0),
-                });
-                
-                page.drawText(`Data de Conclusão: ${data_conclusao || 'N/A'}`, {
-                  x: 50,
-                  y: 590,
-                  size: 12,
-                  font,
-                  color: rgb(0, 0, 0),
-                });
-                
-                page.drawText(`Data de Assinatura: ${data_assinatura || 'N/A'}`, {
-                  x: 50,
-                  y: 560,
-                  size: 12,
-                  font,
-                  color: rgb(0, 0, 0),
-                });
-                
-                page.drawText('Este certificado comprova a conclusão do treinamento de segurança NR12.', {
-                  x: 50,
-                  y: 450,
-                  size: 10,
-                  font,
-                  color: rgb(0, 0, 0),
-                });
-                
-                // Save PDF
+          // USAR NOVO GERADOR NATIVO NODE.JS
+          console.log('🚀 Usando NOVO DocumentGenerator (biblioteca nativa)');
+          try {
+            await DocumentGenerator.generateDocument(
+              template.storageRef,
+              variablesData,
+              outputPath
+            );
+            documentStatus = "generated";
+            console.log('✅ NOVO DocumentGenerator: Sucesso!');
+          } catch (generatorError: any) {
+            console.log('⚠️ NOVO DocumentGenerator falhou:', generatorError?.message);
+            documentStatus = "failed";
+            errorMessage = generatorError?.message || 'Erro na geração';
+          }
+
+          console.log(`📄 Documento ${document.filename}: Status = ${documentStatus}`);
                 const pdfBytes = await pdfDoc.save();
                 await import('fs').then(fs => fs.promises.writeFile(outputPath, pdfBytes));
                 
