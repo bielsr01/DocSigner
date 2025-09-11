@@ -53,7 +53,8 @@ export default function AssinarDocumentosPage() {
   });
 
   const validCertificates = certificates.filter((cert: Certificate) => {
-    if (!cert.validTo) return false;
+    // Include certificates without expiry date or those still valid
+    if (!cert.validTo) return true; // Include certificates without expiry date
     const validToDate = new Date(cert.validTo);
     const now = new Date();
     return validToDate > now;
