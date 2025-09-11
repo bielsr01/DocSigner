@@ -200,7 +200,9 @@ export class DocumentGenerator {
 
     switch (engine) {
       case ConverterEngine.LIBREOFFICE:
-        await this.convertWithLibreOffice(docxPath, outputDir);
+        // ⏸️ PAUSADO - Usando OnlyOffice Local para testes
+        console.log('⏸️ LibreOffice pausado - forçando OnlyOffice Local');
+        await this.convertWithOnlyOfficeLocal(docxPath, outputDir);
         break;
       
       case ConverterEngine.ONLYOFFICE_HTTP:
@@ -630,22 +632,20 @@ export class DocumentGenerator {
    * USO: export DOC_CONVERTER=onlyoffice-local
    */
   private static async convertWithOnlyOfficeLocal(docxPath: string, outputDir: string): Promise<void> {
-    console.log('🏠 Usando OnlyOffice Document Builder Local para conversão DOCX→PDF...');
+    console.log('🏠 Usando OnlyOffice X2T Converter para conversão DOCX→PDF...');
     
     // Configurações com valores padrão
-    const builderPath = process.env.ONLYOFFICE_BUILDER_PATH || await this.detectOnlyOfficeBuilderPath();
-    const dataPath = process.env.ONLYOFFICE_BUILDER_DATA_PATH;
-    const timeoutMs = parseInt(process.env.ONLYOFFICE_BUILDER_TIMEOUT_MS || '60000');
+    const x2tPath = process.env.ONLYOFFICE_X2T_PATH || await this.detectOnlyOfficeX2TPath();
+    const timeoutMs = parseInt(process.env.ONLYOFFICE_X2T_TIMEOUT_MS || '60000');
 
-    console.log(`📋 Configuração OnlyOffice Document Builder Local:`, {
-      builderPath: builderPath || 'auto-detect',
-      hasDataPath: !!dataPath,
+    console.log(`📋 Configuração OnlyOffice X2T Converter:`, {
+      x2tPath: x2tPath || 'auto-detect',
       timeoutMs
     });
 
-    // Verificar se OnlyOffice Document Builder está disponível
-    if (!builderPath || !fs.existsSync(builderPath)) {
-      throw new Error(`OnlyOffice Document Builder não encontrado. Instale ou configure ONLYOFFICE_BUILDER_PATH. Path atual: ${builderPath}`);
+    // Verificar se OnlyOffice X2T está disponível
+    if (!x2tPath || !fs.existsSync(x2tPath)) {
+      throw new Error(`OnlyOffice X2T não encontrado. Instale ou configure ONLYOFFICE_X2T_PATH. Path atual: ${x2tPath}`);
     }
 
     // Gerar nome do arquivo PDF de saída (DEVE coincidir com expectativa de processDocxTemplate)
@@ -654,29 +654,84 @@ export class DocumentGenerator {
 
     console.log(`📄 Convertendo: ${path.basename(docxPath)} → ${outputFileName}`);
 
-    // Criar script .docbuilder temporário
-    const scriptPath = await this.generateDocBuilderScript(docxPath, outputPath, dataPath);
-
     try {
-      // Executar OnlyOffice Document Builder via spawn/exec
-      await this.executeDocBuilderScript(builderPath, scriptPath, timeoutMs);
-
-      // Verificar se PDF foi gerado
-      if (!fs.existsSync(outputPath)) {
-        throw new Error(`PDF não foi gerado pelo OnlyOffice Document Builder: ${outputPath}`);
+      console.log('🚀 Executando OnlyOffice X2T Converter...');
+      console.log(`📝 Comando: ${x2tPath} "${docxPath}" "${outputPath}"`);
+      
+      // Executar OnlyOffice X2T diretamente: x2t input.docx output.pdf
+      const startTime = Date.now();
+      const { stdout, stderr } = await execFileAsync(x2tPath, [docxPath, outputPath], {
+        timeout: timeoutMs,
+        cwd: path.dirname(x2tPath)
+      });
+      
+      const duration = Date.now() - startTime;
+      
+      // Verificar se houve erros no stderr
+      if (stderr && stderr.includes('Empty sFileFrom or sFileTo')) {
+        throw new Error('Parâmetros inválidos fornecidos ao x2t.');
       }
-
+      
+      // Verificar se arquivo PDF foi gerado
+      if (!fs.existsSync(outputPath)) {
+        throw new Error(`PDF não foi gerado pelo OnlyOffice X2T: ${outputPath}`);
+      }
+      
       const pdfStats = fs.statSync(outputPath);
-      console.log(`✅ OnlyOffice Document Builder Local conversão concluída: ${pdfStats.size} bytes`);
-
-    } finally {
-      // Limpar script temporário
-      this.cleanupTempFiles([scriptPath]);
+      console.log(`✅ OnlyOffice X2T conversão concluída em ${duration}ms: ${pdfStats.size} bytes`);
+      
+    } catch (error: any) {
+      console.error('❌ Erro na conversão OnlyOffice X2T:', error);
+      throw error;
     }
   }
 
   /**
-   * Detecta automaticamente o path do OnlyOffice Document Builder
+   * Detecta automaticamente o path do OnlyOffice X2T Converter
+   */
+  private static async detectOnlyOfficeX2TPath(): Promise<string | null> {
+    console.log('🔍 Detectando OnlyOffice X2T Converter...');
+    
+    // Paths comuns onde OnlyOffice X2T pode estar instalado
+    const commonPaths = [
+      // Path local no projeto (se baixado)
+      path.join(__dirname, '..', 'onlyoffice-builder', 'opt', 'onlyoffice', 'documentbuilder', 'x2t'),
+      // Paths padrão do sistema
+      '/opt/onlyoffice/documentbuilder/x2t',
+      '/usr/bin/x2t',
+      '/usr/local/bin/x2t',
+      // Path relativo
+      './onlyoffice-builder/opt/onlyoffice/documentbuilder/x2t'
+    ];
+
+    for (const x2tPath of commonPaths) {
+      console.log(`🔍 Verificando: ${x2tPath}`);
+      
+      try {
+        // Resolver path absoluto
+        const absolutePath = path.resolve(x2tPath);
+        
+        if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
+          // Verificar se é executável (Linux/Unix)
+          try {
+            fs.accessSync(absolutePath, fs.constants.F_OK | fs.constants.X_OK);
+            console.log(`✅ OnlyOffice X2T detectado: ${absolutePath}`);
+            return absolutePath;
+          } catch (accessError) {
+            console.log(`⚠️ Arquivo encontrado mas não é executável: ${absolutePath}`);
+          }
+        }
+      } catch (error) {
+        // Continuar para próximo path
+      }
+    }
+
+    console.log('❌ OnlyOffice X2T não detectado automaticamente');
+    return null;
+  }
+
+  /**
+   * Detecta automaticamente o path do OnlyOffice Document Builder (LEGACY)
    */
   private static async detectOnlyOfficeBuilderPath(): Promise<string | null> {
     console.log('🔍 Detectando OnlyOffice Document Builder...');
