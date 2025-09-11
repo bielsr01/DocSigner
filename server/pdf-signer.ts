@@ -3,6 +3,7 @@ import path from 'path';
 import signpdf from '@signpdf/signpdf';
 import { plainAddPlaceholder } from '@signpdf/placeholder-plain';
 import { P12Signer } from '@signpdf/signer-p12';
+import * as forge from 'node-forge';
 
 export interface SignatureOptions {
   certificatePath: string;
@@ -192,23 +193,35 @@ export class PDFSigner {
 
       const certificateBuffer = fs.readFileSync(certificatePath);
       
-      // Try to create signer to validate certificate
-      const signer = new P12Signer(certificateBuffer, {
-        passphrase: password,
-      });
-
-      // If we get here, certificate is valid
-      // Note: @signpdf doesn't expose certificate details easily
-      // For production, you might want to use node-forge directly for detailed info
+      // Use node-forge to extract real certificate information
+      const p12Asn1 = forge.asn1.fromDer(forge.util.encode64(certificateBuffer.toString('binary')));
+      const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, password);
+      
+      // Get the certificate from the p12
+      const certBags = p12.getBags({bagType: forge.pki.oids.certBag});
+      const certBag = certBags[forge.pki.oids.certBag]?.[0];
+      
+      if (!certBag?.cert) {
+        throw new Error('No certificate found in P12 file');
+      }
+      
+      const cert = certBag.cert;
+      
+      // Extract certificate information
+      const subject = cert.subject.attributes.map(attr => `${attr.shortName || attr.name}=${attr.value}`).join(', ');
+      const issuer = cert.issuer.attributes.map(attr => `${attr.shortName || attr.name}=${attr.value}`).join(', ');
+      const validFrom = cert.validity.notBefore.toISOString();
+      const validTo = cert.validity.notAfter.toISOString();
+      const serial = cert.serialNumber;
       
       return {
         success: true,
         info: {
-          subject: 'Certificate Subject',
-          issuer: 'Certificate Issuer',
-          validFrom: new Date().toISOString(),
-          validTo: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          serial: 'Certificate Serial'
+          subject,
+          issuer,
+          validFrom,
+          validTo,
+          serial
         }
       };
 

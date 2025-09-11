@@ -171,15 +171,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Template file is required' });
       }
       
-      // Extract variables from PDF automatically
+      // Extract variables from template automatically (PDF and DOCX)
       let extractedVariables: string[] = [];
       try {
-        if (req.file.mimetype === 'application/pdf') {
-          const pdfVariables = await PDFProcessor.extractVariables(req.file.path);
-          extractedVariables = pdfVariables.map(v => v.name);
+        const extension = path.extname(req.file.originalname).toLowerCase();
+        if (req.file.mimetype === 'application/pdf' || 
+            req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            extension === '.docx' || extension === '.pdf') {
+          console.log(`Extracting variables from ${extension} file: ${req.file.originalname}`);
+          const templateVariables = await PDFProcessor.extractVariables(req.file.path);
+          extractedVariables = templateVariables.map(v => v.name);
+          console.log(`Found ${extractedVariables.length} variables:`, extractedVariables);
         }
       } catch (error) {
-        console.error('Error extracting PDF variables:', error);
+        console.error('Error extracting template variables:', error);
         // Continue without variables if extraction fails
       }
       
@@ -331,14 +336,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Certificate file is required' });
       }
       
-      // Parse certificate data from request body
+      // Extract real certificate information
+      const certificatePath = path.join(process.cwd(), getStorageRef(req.file));
+      const certificatePassword = req.body.password || ''; // Get password from form
+      
+      let certificateInfo = {
+        subject: 'Unknown',
+        issuer: 'Unknown',
+        validFrom: null as string | null,
+        validTo: null as string | null,
+        serial: null as string | null,
+        type: 'A1'
+      };
+      
+      if (certificatePassword) {
+        try {
+          const certInfo = await PDFSigner.getCertificateInfo(certificatePath, certificatePassword);
+          if (certInfo.success && certInfo.info) {
+            certificateInfo = {
+              subject: certInfo.info.subject || 'Unknown',
+              issuer: certInfo.info.issuer || 'Unknown', 
+              validFrom: certInfo.info.validFrom || null,
+              validTo: certInfo.info.validTo || null,
+              serial: certInfo.info.serial || null,
+              type: certInfo.info.issuer?.includes('ICP-Brasil') ? 'A3' : 'A1'
+            };
+          }
+        } catch (error) {
+          console.log('Could not extract certificate info, using defaults:', error);
+        }
+      }
+
+      // Parse certificate data from request body with extracted info
       const certificateData = {
         name: req.body.name,
-        description: req.body.description || '',
-        type: 'A1', // Default type for uploaded certificates
+        type: certificateInfo.type,
+        serial: certificateInfo.serial,
+        validFrom: certificateInfo.validFrom,
+        validTo: certificateInfo.validTo,
         storageRef: getStorageRef(req.file),
         originalFilename: req.file.originalname,
-        fileSize: req.file.size,
         mimeType: req.file.mimetype
       };
       
