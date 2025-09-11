@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { upload, getStorageRef } from "./upload";
 import { PDFProcessor } from "./pdf-processor";
+import { DocxProcessor } from "./docx-processor";
 import { PDFSigner } from "./pdf-signer";
 import fs from 'fs';
 import path from 'path';
@@ -548,8 +549,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const variablesData = JSON.parse(docData.variables);
           console.log(`Variables for ${document.filename}:`, variablesData);
           
-          // Generate PDF using PDFProcessor
-          await PDFProcessor.generateDocument(
+          // Generate PDF using DocxProcessor (docxtemplater + puppeteer)
+          await DocxProcessor.generateDocument(
             template.storageRef,
             variablesData,
             outputPath
@@ -584,7 +585,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Mark document as failed with detailed error information
           await storage.updateDocument(document.id, {
-            status: "failed",
             status: "failed"
           }, user.id);
         }
