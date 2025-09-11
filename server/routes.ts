@@ -220,8 +220,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = (req as any).user;
       
       // Only allow updating safe fields, exclude server-managed fields
-      const allowedFields = { name: req.body.name, description: req.body.description, variables: req.body.variables };
-      const templateData = insertTemplateSchema.pick({ name: true, description: true, variables: true }).partial().parse(allowedFields);
+      const allowedFields = { name: req.body.name, variables: req.body.variables };
+      const templateData = insertTemplateSchema.pick({ name: true, variables: true }).partial().parse(allowedFields);
       const template = await storage.updateTemplate(req.params.id, templateData, user.id);
       
       if (!template) {
