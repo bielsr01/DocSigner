@@ -8,6 +8,7 @@ import { DocumentGenerator } from "./document-generator";
 import { PDFSigner } from "./pdf-signer";
 import fs from 'fs';
 import path from 'path';
+import archiver from 'archiver';
 import { 
   insertUserSchema,
   insertTemplateSchema,
@@ -796,6 +797,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Document download error:', error);
       res.status(500).json({ error: 'Failed to download document' });
+    }
+  });
+
+  // Batch ZIP download route
+  app.get("/api/batches/:id/download", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      
+      // Get batch info
+      const batch = await storage.getBatch(req.params.id, user.id);
+      if (!batch) {
+        return res.status(404).json({ error: "Batch not found" });
+      }
+      
+      // Get all documents in this batch with status 'ready'
+      const documents = await storage.getDocuments({ batchId: req.params.id });
+      if (!documents || documents.length === 0) {
+        return res.status(404).json({ error: "No documents found in this batch" });
+      }
+      
+      const readyDocuments = documents.filter((doc: any) => doc.status === 'ready' && doc.storageRef);
+      if (readyDocuments.length === 0) {
+        return res.status(400).json({ error: "No ready documents found in this batch" });
+      }
+      
+      console.log(`Creating ZIP for batch ${batch.id} with ${readyDocuments.length} documents`);
+      
+      // Sanitize batch label for filename
+      const safeBatchLabel = (batch.label || 'Batch').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const zipFilename = `${safeBatchLabel}.zip`;
+      
+      // Set response headers for ZIP download
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      
+      // Create archiver instance
+      const archive = archiver('zip', {
+        zlib: { level: 9 } // Maximum compression
+      });
+      
+      // Handle archiver errors
+      archive.on('error', (err) => {
+        console.error('Archive error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to create ZIP file' });
+        }
+      });
+      
+      // Pipe archive data to the response
+      archive.pipe(res);
+      
+      const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+      let filesAdded = 0;
+      
+      // Add each document to the ZIP
+      for (const document of readyDocuments) {
+        try {
+          // Validate and secure the file path (prevent path traversal)
+          const requestedPath = path.resolve(process.cwd(), document.storageRef);
+          const relativePath = path.relative(uploadsRoot, requestedPath);
+          
+          if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+            console.error('Path traversal attempt detected for document:', document.storageRef);
+            continue; // Skip this file but continue with others
+          }
+          
+          // Check if file exists
+          if (!fs.existsSync(requestedPath)) {
+            console.error('Document file not found on disk:', requestedPath);
+            continue; // Skip this file but continue with others
+          }
+          
+          // Sanitize filename for ZIP entry
+          const safeFilename = (document.filename || `document_${document.id}.pdf`).replace(/[^a-zA-Z0-9._-]/g, '_');
+          
+          // Add file to archive
+          archive.file(requestedPath, { name: safeFilename });
+          filesAdded++;
+          console.log(`Added file to ZIP: ${safeFilename}`);
+          
+        } catch (fileError) {
+          console.error(`Error processing document ${document.id}:`, fileError);
+          // Continue with other files
+        }
+      }
+      
+      if (filesAdded === 0) {
+        console.error('No files were added to the ZIP');
+        if (!res.headersSent) {
+          return res.status(500).json({ error: 'No files could be added to ZIP' });
+        }
+      }
+      
+      console.log(`ZIP creation completed. Added ${filesAdded} files to ${zipFilename}`);
+      
+      // Finalize the archive (this will trigger the 'end' event)
+      await archive.finalize();
+      
+    } catch (error) {
+      console.error('Batch download error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to download batch' });
+      }
     }
   });
 

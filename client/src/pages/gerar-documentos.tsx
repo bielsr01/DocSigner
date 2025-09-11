@@ -78,6 +78,8 @@ export default function GerarDocumentosPage() {
     completedAt?: Date;
     downloadUrl?: string;
     error?: string;
+    backendId?: string;
+    batchId?: string;
   }>>([]);
 
   const selectedTemplateData = templates.find(t => t.id === selectedTemplate);
@@ -251,6 +253,7 @@ export default function GerarDocumentosPage() {
       
       // Update documents with real backend response
       const backendDocuments = Array.isArray(result.documents) ? result.documents : [result.document];
+      const batchData = result.batch;
       
       setGeneratedDocuments(prevDocs => 
         prevDocs.map(doc => 
@@ -258,8 +261,11 @@ export default function GerarDocumentosPage() {
             ? { 
                 ...doc, 
                 status: 'generated' as const,
-                backendId: backendDocuments[0]?.id || documentId, // Use real backend ID
-                downloadUrl: `/api/documents/${backendDocuments[0]?.id || documentId}/download`,
+                backendId: backendDocuments[0]?.id || documentId,
+                batchId: batchData?.id || undefined,
+                downloadUrl: dataToProcess.length > 1 && batchData?.id 
+                  ? `/api/batches/${batchData.id}/download`
+                  : `/api/documents/${backendDocuments[0]?.id || documentId}/download`,
                 completedAt: new Date()
               }
             : doc
@@ -292,6 +298,37 @@ export default function GerarDocumentosPage() {
       toast({
         title: "Erro na geração",
         description: error instanceof Error ? error.message : "Falha ao gerar documentos. Tente novamente.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDownloadDocument = async (doc: any) => {
+    try {
+      if (doc.documentsCount > 1 && doc.batchId) {
+        console.log('Downloading batch:', doc);
+        // Batch with multiple documents - use ZIP download
+        window.open(doc.downloadUrl, '_blank');
+        
+        toast({
+          title: "Download iniciado",
+          description: `Baixando ${doc.documentsCount} documentos em formato ZIP...`
+        });
+      } else {
+        console.log('Downloading single document:', doc);
+        // Single document - use individual download
+        window.open(doc.downloadUrl, '_blank');
+        
+        toast({
+          title: "Download iniciado",
+          description: "Baixando documento..."
+        });
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Erro no download",
+        description: "Falha ao iniciar download. Tente novamente.",
         variant: "destructive"
       });
     }
@@ -767,11 +804,11 @@ export default function GerarDocumentosPage() {
                             <Button 
                               size="sm" 
                               variant="outline"
-                              onClick={() => window.open(doc.downloadUrl, '_blank')}
+                              onClick={() => handleDownloadDocument(doc)}
                               data-testid={`button-download-${doc.id}`}
                             >
                               <Download className="w-3 h-3 mr-1" />
-                              Download
+                              {doc.documentsCount > 1 ? 'Download ZIP' : 'Download'}
                             </Button>
                           )}
                         </div>
