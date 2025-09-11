@@ -72,9 +72,23 @@ export function AppSidebar() {
     avatar: ""
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     console.log('Logout triggered');
-    // TODO: Implement logout functionality
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        // Redirect to login page
+        window.location.href = '/';
+      } else {
+        console.error('Logout failed');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const handleAdminSettings = () => {
