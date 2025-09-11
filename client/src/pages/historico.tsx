@@ -125,7 +125,7 @@ export default function HistoricoPage() {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold mb-2">Histórico</h1>
-            <p className="text-muted-foreground">Acompanhe todas as atividades do sistema</p>
+            <p className="text-muted-foreground">Acompanhe a geração e assinatura de documentos</p>
           </div>
           
           <Button onClick={handleRefresh} data-testid="button-refresh-history">
