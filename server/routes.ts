@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import express from "express";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
-import { upload, getStorageRef } from "./upload";
+import { upload, uploadFiles, getStorageRef } from "./upload";
 import { DocumentGenerator } from "./document-generator";
 import fs from 'fs';
 import path from 'path';
@@ -490,8 +490,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test upload endpoint (for debugging)
+  app.post("/api/test-upload", requireAuth, uploadFiles.array('files', 10), (req, res) => {
+    console.log('🔍 TEST UPLOAD - req.files:', req.files);
+    console.log('🔍 TEST UPLOAD - req.body:', req.body);
+    console.log('🔍 TEST UPLOAD - files length:', req.files ? (req.files as any).length : 'null/undefined');
+    
+    res.json({
+      success: true,
+      filesReceived: req.files ? (req.files as any).length : 0,
+      files: req.files,
+      body: req.body
+    });
+  });
+
   // Upload and sign PDFs endpoint
-  app.post("/api/documents/upload-and-sign", requireAuth, upload.array('files', 10), async (req, res) => {
+  app.post("/api/documents/upload-and-sign", requireAuth, uploadFiles.array('files', 10), async (req, res) => {
     try {
       const user = (req as any).user;
       const { certificateId } = req.body;
