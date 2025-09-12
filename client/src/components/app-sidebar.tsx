@@ -97,9 +97,9 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 relative overflow-hidden border-r-0 text-white">
+    <Sidebar className="bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 dark:from-blue-800 dark:via-blue-700 dark:to-teal-600 relative overflow-hidden border-r-0 text-white">
       {/* Background decoration - EXATAMENTE IGUAL À TELA DE LOGIN */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 dark:from-blue-800/30 to-transparent"></div>
       <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-16 translate-x-16"></div>
       <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
       <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-white/5 rounded-full"></div>
