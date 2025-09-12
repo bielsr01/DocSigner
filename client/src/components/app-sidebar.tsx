@@ -102,10 +102,10 @@ export function AppSidebar() {
         {/* Logo */}
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <img src={logoUrl} alt="DocuSign Pro" className="w-8 h-8" />
+            <img src={logoUrl} alt="FastSign Pro" className="w-8 h-8" />
             <div className="flex flex-col">
-              <span className="font-semibold text-sidebar-foreground">DocuSign Pro</span>
-              <span className="text-xs text-sidebar-foreground/60">Sistema de Assinatura Digital</span>
+              <span className="font-semibold text-sidebar-foreground">FastSign Pro</span>
+              <span className="text-xs text-sidebar-foreground/60">Gestão de documentos inteligente</span>
             </div>
           </div>
         </div>

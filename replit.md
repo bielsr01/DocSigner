@@ -1,4 +1,4 @@
-# DocuSign Pro - Document Management & Digital Signature System
+# FastSign Pro - Document Management & Digital Signature System
 
 ## Overview
 
