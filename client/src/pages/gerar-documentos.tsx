@@ -139,37 +139,83 @@ export default function GerarDocumentosPage() {
     handleRemoveManualRecord(index);
   };
 
+  const normalizeKey = (str: string) => {
+    return str.toLowerCase()
+      .trim()
+      .replace(/[áàâã]/g, 'a')
+      .replace(/[éèê]/g, 'e')
+      .replace(/[íì]/g, 'i')
+      .replace(/[óòôõ]/g, 'o')
+      .replace(/[úù]/g, 'u')
+      .replace(/[ç]/g, 'c')
+      .replace(/[\s\-_]/g, '_');
+  };
+
   const handleCsvDataPaste = () => {
     if (!csvData.trim() || !selectedTemplateData) return;
     
     console.log('Processing CSV data:', csvData);
     
-    // Simple CSV parsing - first row is headers, subsequent rows are data
-    const lines = csvData.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.trim());
+    // Detect delimiter (comma or semicolon)
+    const sampleLine = csvData.trim().split('\n')[0];
+    const delimiter = sampleLine.includes(';') ? ';' : ',';
     
-    // Validate headers match template variables
+    // Parse lines
+    const lines = csvData.trim().split('\n').filter(line => line.trim());
+    if (lines.length === 0) return;
+    
     const templateVars = selectedTemplateData.variables;
-    const missingVars = templateVars.filter(v => !headers.includes(v));
+    let headers: string[] = [];
+    let dataStartIndex = 0;
     
-    if (missingVars.length > 0) {
+    // Try to detect if first row contains headers
+    const firstRowValues = lines[0].split(delimiter).map(h => h.trim());
+    const normalizedFirstRow = firstRowValues.map(normalizeKey);
+    const normalizedTemplateVars = templateVars.map(normalizeKey);
+    
+    // Check if all template variables are found in first row (headers detected)
+    const hasValidHeaders = normalizedTemplateVars.every(tv => 
+      normalizedFirstRow.some(nr => nr === tv)
+    );
+    
+    if (hasValidHeaders) {
+      // Use first row as headers
+      headers = firstRowValues;
+      dataStartIndex = 1;
+      console.log('Headers detected:', headers);
+    } else if (firstRowValues.length === templateVars.length) {
+      // No headers, but column count matches - map by position
+      headers = templateVars;
+      dataStartIndex = 0;
+      console.log('No headers detected, mapping by position:', templateVars);
+    } else {
+      // Column count mismatch - show error with guidance
       toast({
-        title: "Colunas faltando",
-        description: `As seguintes variáveis não foram encontradas nos dados: ${missingVars.join(', ')}`,
+        title: "Formato não reconhecido",
+        description: `Esperado ${templateVars.length} colunas (${templateVars.join(', ')}), mas encontrado ${firstRowValues.length}. Verifique se a primeira linha contém cabeçalhos ou se as colunas estão na ordem correta.`,
         variant: "destructive"
       });
       return;
     }
     
-    const processedData = lines.slice(1).filter(line => line.trim()).map(line => {
-      const values = line.split(',').map(v => v.trim());
+    // Process data rows
+    const processedData = lines.slice(dataStartIndex).map(line => {
+      const values = line.split(delimiter).map(v => v.trim());
       const row: Record<string, string> = {};
       
-      // Map only template variables
-      templateVars.forEach(variable => {
-        const headerIndex = headers.findIndex(h => h === variable);
-        row[variable] = headerIndex >= 0 ? (values[headerIndex] || '') : '';
-      });
+      if (hasValidHeaders) {
+        // Map by header names
+        templateVars.forEach(variable => {
+          const normalizedVar = normalizeKey(variable);
+          const headerIndex = headers.findIndex(h => normalizeKey(h) === normalizedVar);
+          row[variable] = headerIndex >= 0 ? (values[headerIndex] || '') : '';
+        });
+      } else {
+        // Map by position
+        templateVars.forEach((variable, index) => {
+          row[variable] = values[index] || '';
+        });
+      }
       
       return row;
     });
@@ -178,7 +224,7 @@ export default function GerarDocumentosPage() {
     
     toast({
       title: "Dados CSV processados",
-      description: `${processedData.length} registros carregados com sucesso`
+      description: `${processedData.length} registros carregados com sucesso (${hasValidHeaders ? 'com cabeçalhos' : 'por posição'})`
     });
   };
 
@@ -187,32 +233,62 @@ export default function GerarDocumentosPage() {
     
     console.log('Processing Excel data:', excelData);
     
-    // Process tab-separated values (TSV) which is what Excel produces when copying
-    const lines = excelData.trim().split('\n');
-    const headers = lines[0].split('\t').map(h => h.trim());
+    // Parse tab-separated values (TSV)
+    const lines = excelData.trim().split('\n').filter(line => line.trim());
+    if (lines.length === 0) return;
     
-    // Validate headers match template variables
     const templateVars = selectedTemplateData.variables;
-    const missingVars = templateVars.filter(v => !headers.includes(v));
+    let headers: string[] = [];
+    let dataStartIndex = 0;
     
-    if (missingVars.length > 0) {
+    // Try to detect if first row contains headers
+    const firstRowValues = lines[0].split('\t').map(h => h.trim());
+    const normalizedFirstRow = firstRowValues.map(normalizeKey);
+    const normalizedTemplateVars = templateVars.map(normalizeKey);
+    
+    // Check if all template variables are found in first row (headers detected)
+    const hasValidHeaders = normalizedTemplateVars.every(tv => 
+      normalizedFirstRow.some(nr => nr === tv)
+    );
+    
+    if (hasValidHeaders) {
+      // Use first row as headers
+      headers = firstRowValues;
+      dataStartIndex = 1;
+      console.log('Headers detected:', headers);
+    } else if (firstRowValues.length === templateVars.length) {
+      // No headers, but column count matches - map by position
+      headers = templateVars;
+      dataStartIndex = 0;
+      console.log('No headers detected, mapping by position:', templateVars);
+    } else {
+      // Column count mismatch - show error with guidance
       toast({
-        title: "Colunas faltando",
-        description: `As seguintes variáveis não foram encontradas nos dados: ${missingVars.join(', ')}`,
+        title: "Formato não reconhecido",
+        description: `Esperado ${templateVars.length} colunas (${templateVars.join(', ')}), mas encontrado ${firstRowValues.length}. Verifique se a primeira linha contém cabeçalhos ou se as colunas estão na ordem correta.`,
         variant: "destructive"
       });
       return;
     }
     
-    const processedData = lines.slice(1).filter(line => line.trim()).map(line => {
+    // Process data rows
+    const processedData = lines.slice(dataStartIndex).map(line => {
       const values = line.split('\t').map(v => v.trim());
       const row: Record<string, string> = {};
       
-      // Map only template variables
-      templateVars.forEach(variable => {
-        const headerIndex = headers.findIndex(h => h === variable);
-        row[variable] = headerIndex >= 0 ? (values[headerIndex] || '') : '';
-      });
+      if (hasValidHeaders) {
+        // Map by header names
+        templateVars.forEach(variable => {
+          const normalizedVar = normalizeKey(variable);
+          const headerIndex = headers.findIndex(h => normalizeKey(h) === normalizedVar);
+          row[variable] = headerIndex >= 0 ? (values[headerIndex] || '') : '';
+        });
+      } else {
+        // Map by position
+        templateVars.forEach((variable, index) => {
+          row[variable] = values[index] || '';
+        });
+      }
       
       return row;
     });
@@ -221,7 +297,7 @@ export default function GerarDocumentosPage() {
     
     toast({
       title: "Dados Excel processados",
-      description: `${processedData.length} registros carregados com sucesso`
+      description: `${processedData.length} registros carregados com sucesso (${hasValidHeaders ? 'com cabeçalhos' : 'por posição'})`
     });
   };
 
@@ -651,7 +727,7 @@ export default function GerarDocumentosPage() {
                         data-testid="textarea-csv-data"
                       />
                       <p className="text-xs text-muted-foreground mt-2">
-                        <strong>Importante:</strong> A primeira linha deve conter exatamente os nomes das variáveis: {selectedTemplateData.variables.join(', ')}
+                        <strong>Flexível:</strong> Cole dados com ou sem cabeçalhos. Se não houver cabeçalhos, a ordem esperada é: {selectedTemplateData.variables.join(', ')}
                       </p>
                     </div>
                     <Button onClick={handleCsvDataPaste} data-testid="button-process-csv">
@@ -672,8 +748,9 @@ export default function GerarDocumentosPage() {
                         data-testid="textarea-excel-data"
                       />
                       <p className="text-xs text-muted-foreground mt-2">
-                        <strong>Dicas:</strong> 
-                        <br />• Primeira linha deve conter exatamente: {selectedTemplateData.variables.join(', ')}
+                        <strong>Flexível:</strong> 
+                        <br />• Cole dados com ou sem cabeçalhos
+                        <br />• Se sem cabeçalhos, ordem esperada: {selectedTemplateData.variables.join(', ')}
                         <br />• Selecione e copie (Ctrl+C) diretamente do Excel, depois cole aqui
                       </p>
                     </div>
