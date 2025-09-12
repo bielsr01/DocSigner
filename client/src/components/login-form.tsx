@@ -179,7 +179,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 p-0 hover:bg-gray-100 ml-[364px] mr-[364px]"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 p-0 hover:bg-gray-100/80 transition-colors duration-200"
                       onClick={() => setShowPassword(!showPassword)}
                       data-testid="button-toggle-password"
                     >
