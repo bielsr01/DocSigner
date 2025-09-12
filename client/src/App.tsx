@@ -85,6 +85,23 @@ function App() {
       setLocation('/');
     }, 100);
   };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      console.log('🔄 Logout successful');
+      setUser(null);
+      setLocation('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if logout fails, clear local state
+      setUser(null);
+      setLocation('/');
+    }
+  };
   
   // Custom sidebar width for document management application
   const style = {

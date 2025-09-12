@@ -17,7 +17,6 @@ import { Badge } from "@/components/ui/badge";
 import logoUrl from "@assets/fastsign-pro-logo.png";
 
 interface User {
-  id: string;
   name: string;
   email: string;
   role: string;
