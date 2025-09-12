@@ -1,4 +1,4 @@
-import { Home, FileText, Upload, History, Settings, LogOut } from "lucide-react";
+import { Home, FileText, Upload, History, Download, Settings, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -57,6 +57,11 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
       title: "Histórico",
       url: "/historico",
       icon: History,
+    },
+    {
+      title: "Downloads",
+      url: "/download",
+      icon: Download,
     },
   ];
 
