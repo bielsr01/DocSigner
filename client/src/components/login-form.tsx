@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FileText, Zap, Shield, CheckCircle, Mail } from "lucide-react";
+import { FileText, Zap, Shield, CheckCircle, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import fastSignLogo from "@assets/fastsign-pro-logo.png";
 
 interface LoginFormProps {
@@ -12,6 +12,7 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ onLogin }: LoginFormProps) {
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
 
@@ -162,16 +163,33 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                   <Label htmlFor="password" className="text-sm font-medium text-gray-700">
                     Senha
                   </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Digite sua senha"
-                    className="h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-                    value={loginData.password}
-                    onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                    data-testid="input-password"
-                    required
-                  />
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Digite sua senha"
+                      className="pl-10 pr-12 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                      value={loginData.password}
+                      onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                      data-testid="input-password"
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 p-0 hover:bg-gray-100"
+                      onClick={() => setShowPassword(!showPassword)}
+                      data-testid="button-toggle-password"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between">
