@@ -55,8 +55,8 @@ export default function DashboardPage() {
     relevantActions.includes(item.action)
   );
   
-  // Get recent activity (first 4 items)
-  const recentActivity = filteredActivity.slice(0, 4);
+  // Get recent activity (first 3 items)
+  const recentActivity = filteredActivity.slice(0, 3);
   
   const handleRefreshStats = async () => {
     console.log('Refreshing dashboard stats...');
@@ -117,12 +117,12 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="p-6">
+      <div className="p-4">
         <div className="max-w-6xl mx-auto">
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex justify-between items-center mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-3">Dashboard</h1>
-              <p className="text-gray-600 text-lg">Visão geral do seu sistema de documentos</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+              <p className="text-gray-600 text-base">Visão geral do seu sistema de documentos</p>
             </div>
             
             <Button 
@@ -136,7 +136,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">Total de Documentos</CardTitle>
@@ -198,14 +198,14 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Quick Actions */}
             <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
               <CardHeader>
                 <CardTitle className="text-gray-900 text-lg">Ações Rápidas</CardTitle>
                 <CardDescription className="text-gray-600">Acesse rapidamente as principais funcionalidades</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-2">
                 <Button 
                   className="w-full justify-start bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 transition-all duration-300 group" 
                   variant="outline"
@@ -263,7 +263,7 @@ export default function DashboardPage() {
                 <CardDescription className="text-gray-600">Últimas ações realizadas no sistema</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {recentActivity.map((activity) => (
                     <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-300">
                       <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center mt-0.5">
