@@ -76,9 +76,9 @@ export function LoginForm({ onLogin }: LoginFormProps) {
   return (
     <div className="min-h-screen flex">
       {/* Left Side - Features with Gradient Background */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 p-12 flex-col justify-center relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-gray-900 via-gray-800 to-black p-12 flex-col justify-center relative overflow-hidden">
         {/* Background decoration */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900/20 to-transparent"></div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/5 rounded-full translate-y-48 -translate-x-48"></div>
         
@@ -86,7 +86,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
           {/* Main Title */}
           <div className="mb-12">
             <h1 className="text-5xl font-bold mb-6">FastSign Pro</h1>
-            <p className="text-xl text-blue-100 leading-relaxed">
+            <p className="text-xl text-gray-300 leading-relaxed">
               Gere, gerencie e assine documentos com a velocidade e segurança que sua empresa precisa.
             </p>
           </div>
@@ -102,10 +102,10 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                   <feature.icon className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-2 group-hover:text-blue-100 transition-colors">
+                  <h3 className="text-lg font-semibold mb-2 group-hover:text-gray-300 transition-colors">
                     {feature.title}
                   </h3>
-                  <p className="text-blue-100 text-sm leading-relaxed group-hover:text-white transition-colors">
+                  <p className="text-gray-300 text-sm leading-relaxed group-hover:text-white transition-colors">
                     {feature.description}
                   </p>
                 </div>

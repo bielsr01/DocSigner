@@ -76,8 +76,9 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
       <div className="flex flex-col h-full bg-gradient-to-br from-gray-900 via-gray-800 to-black dark:from-gray-900 dark:via-gray-800 dark:to-black text-white">
         
         <SidebarHeader>
-          <div className="flex items-center justify-center p-4">
+          <div className="flex items-center gap-3 p-4">
             <img src={logoUrl} alt="FastSign Pro" className="w-10 h-10 shrink-0" />
+            <span className="font-bold text-white text-xl">FastSign Pro</span>
           </div>
         </SidebarHeader>
 
