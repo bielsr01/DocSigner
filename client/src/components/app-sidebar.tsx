@@ -97,22 +97,30 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar>
-      <SidebarContent>
+    <Sidebar className="bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 relative overflow-hidden border-r-0">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-transparent"></div>
+      <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-16 translate-x-16"></div>
+      <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
+      <div className="absolute top-1/2 left-1/4 w-16 h-16 bg-white/3 rounded-full"></div>
+      
+      <SidebarContent className="relative z-10">
         {/* Logo */}
-        <div className="p-4 border-b border-sidebar-border">
+        <div className="p-4 border-b border-white/20">
           <div className="flex items-center gap-3">
-            <img src={logoUrl} alt="FastSign Pro" className="w-8 h-8" />
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+              <img src={logoUrl} alt="FastSign Pro" className="w-6 h-6" />
+            </div>
             <div className="flex flex-col">
-              <span className="font-semibold text-sidebar-foreground">FastSign Pro</span>
-              <span className="text-xs text-sidebar-foreground/60">Gestão de documentos inteligente</span>
+              <span className="font-semibold text-white drop-shadow-sm">FastSign Pro</span>
+              <span className="text-xs text-blue-100">Gestão de documentos inteligente</span>
             </div>
           </div>
         </div>
 
         {/* Navigation Menu */}
         <SidebarGroup>
-          <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-blue-100 font-medium">Menu Principal</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => {
@@ -122,12 +130,14 @@ export function AppSidebar() {
                     <SidebarMenuButton 
                       asChild 
                       data-active={isActive}
-                      className={isActive ? "bg-sidebar-accent" : ""}
+                      className={`hover:bg-white/20 transition-all duration-300 group ${isActive ? "bg-white/30 backdrop-blur-sm text-white shadow-lg" : "text-blue-100 hover:text-white"}`}
                       data-testid={`nav-${item.title.toLowerCase().replace(/ /g, '-')}`}
                     >
-                      <Link href={item.url}>
-                        <item.icon className="w-4 h-4" />
-                        <span>{item.title}</span>
+                      <Link href={item.url} className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-300 ${isActive ? 'bg-white/30' : 'bg-white/10 group-hover:bg-white/20'}`}>
+                          <item.icon className="w-4 h-4" />
+                        </div>
+                        <span className="font-medium">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -139,25 +149,25 @@ export function AppSidebar() {
       </SidebarContent>
 
       {/* User Profile Footer */}
-      <SidebarFooter>
-        <div className="p-4 border-t border-sidebar-border">
+      <SidebarFooter className="relative z-10">
+        <div className="p-4 border-t border-white/20">
           <div className="flex items-center gap-3 mb-3">
-            <Avatar className="w-8 h-8">
+            <Avatar className="w-8 h-8 border-2 border-white/30">
               <AvatarImage src={currentUser.avatar} />
-              <AvatarFallback>
+              <AvatarFallback className="bg-white/20 backdrop-blur-sm text-white text-xs font-medium">
                 {currentUser.name.split(' ').map(n => n[0]).join('')}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">
+              <p className="text-sm font-medium text-white truncate drop-shadow-sm">
                 {currentUser.name}
               </p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">
+              <p className="text-xs text-blue-100 truncate">
                 {currentUser.email}
               </p>
             </div>
             {currentUser.role === 'admin' && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge className="bg-white/20 border-white/30 text-white text-xs backdrop-blur-sm">
                 Admin
               </Badge>
             )}
@@ -169,7 +179,7 @@ export function AppSidebar() {
                 variant="ghost" 
                 size="sm" 
                 onClick={handleAdminSettings}
-                className="flex-1 justify-start"
+                className="flex-1 justify-start bg-white/10 hover:bg-white/20 text-blue-100 hover:text-white border-white/20 transition-all duration-300"
                 data-testid="button-admin-settings"
               >
                 <Settings className="w-4 h-4 mr-2" />
@@ -180,7 +190,7 @@ export function AppSidebar() {
               variant="ghost" 
               size="sm" 
               onClick={handleLogout}
-              className="flex-1 justify-start"
+              className="flex-1 justify-start bg-white/10 hover:bg-white/20 text-blue-100 hover:text-white border-white/20 transition-all duration-300"
               data-testid="button-logout"
             >
               <LogOut className="w-4 h-4 mr-2" />
