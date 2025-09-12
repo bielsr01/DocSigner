@@ -3,9 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Eye, EyeOff, Lock, Mail, User } from "lucide-react";
-import logoUrl from "@assets/generated_images/Professional_document_management_logo_8435641d.png";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Eye, EyeOff, FileText, Zap, Shield, CheckCircle, Mail, Lock } from "lucide-react";
+import fastSignLogo from "@assets/fastsign-pro-logo.png";
 
 interface LoginFormProps {
   onLogin: (user: { email: string; name: string; role: string }) => void;
@@ -13,15 +13,8 @@ interface LoginFormProps {
 
 export function LoginForm({ onLogin }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
-  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
-  const [registerData, setRegisterData] = useState({ 
-    name: "", 
-    email: "", 
-    password: "", 
-    confirmPassword: "" 
-  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,77 +50,107 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log('Register attempt:', registerData);
-    
-    if (registerData.password !== registerData.confirmPassword) {
-      alert('Senhas não coincidem!');
-      return;
+  const features = [
+    {
+      icon: FileText,
+      title: "Gestão de Documentos",
+      description: "Organize e gerencie todos os seus documentos em um local seguro"
+    },
+    {
+      icon: Zap,
+      title: "Templates Inteligentes",
+      description: "Gere documentos automaticamente a partir de templates personalizados"
+    },
+    {
+      icon: Shield,
+      title: "Certificado Digital",
+      description: "Assinatura digital segura com validade jurídica garantida"
+    },
+    {
+      icon: CheckCircle,
+      title: "Automação Completa",
+      description: "Fluxo totalmente automatizado do documento à assinatura"
     }
-    
-    try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          username: registerData.email,
-          email: registerData.email,
-          password: registerData.password,
-          name: registerData.name
-        }),
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        onLogin({
-          email: userData.email,
-          name: userData.name,
-          role: userData.role
-        });
-      } else {
-        const error = await response.text();
-        alert('Erro no registro: ' + error);
-      }
-    } catch (error) {
-      console.error('Register error:', error);
-      alert('Erro de conexão. Tente novamente.');
-    }
-  };
+  ];
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <img src={logoUrl} alt="DocuSign Pro" className="w-16 h-16" />
+    <div className="min-h-screen flex">
+      {/* Left Side - Features with Gradient Background */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 p-12 flex-col justify-center relative overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-32 translate-x-32"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/5 rounded-full translate-y-48 -translate-x-48"></div>
+        
+        <div className="relative z-10 text-white">
+          {/* Main Title */}
+          <div className="mb-12">
+            <h1 className="text-5xl font-bold mb-6">FastSign Pro</h1>
+            <p className="text-xl text-blue-100 leading-relaxed">
+              Gere, gerencie e assine documentos com a velocidade e segurança que sua empresa precisa.
+            </p>
           </div>
-          <CardTitle className="text-2xl">DocuSign Pro</CardTitle>
-          <CardDescription>
-            Sistema de Assinatura Digital de Documentos
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login" data-testid="tab-login">Login</TabsTrigger>
-              <TabsTrigger value="register" data-testid="tab-register">Cadastro</TabsTrigger>
-            </TabsList>
+
+          {/* Features List */}
+          <div className="space-y-8">
+            {features.map((feature, index) => (
+              <div 
+                key={index} 
+                className="flex items-start gap-4 group cursor-pointer transform transition-all duration-300 hover:translate-x-2 hover:scale-[1.02]"
+              >
+                <div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center group-hover:bg-white/30 transition-colors duration-300">
+                  <feature.icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold mb-2 group-hover:text-blue-100 transition-colors">
+                    {feature.title}
+                  </h3>
+                  <p className="text-blue-100 text-sm leading-relaxed group-hover:text-white transition-colors">
+                    {feature.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Right Side - Login Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
+        <div className="w-full max-w-md">
+          <Card className="shadow-xl border-0 bg-white">
+            <CardHeader className="text-center pb-2">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center">
+                  <img src={fastSignLogo} alt="FastSign Pro" className="w-12 h-12 rounded-lg" />
+                </div>
+              </div>
+              <CardTitle className="text-2xl font-bold text-gray-900">FastSign Pro</CardTitle>
+              <CardDescription className="text-sm text-gray-600 mt-1">
+                Gestão de documentos inteligente
+              </CardDescription>
+            </CardHeader>
             
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
+            <CardContent className="pt-6">
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Faça o Login</h2>
+                <p className="text-sm text-gray-600">
+                  Acesse sua conta para gerenciar documentos e assinaturas digitais
+                </p>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
+                  <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                    Email
+                  </Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <Input
                       id="email"
                       type="email"
                       placeholder="seu@email.com"
-                      className="pl-10"
+                      className="pl-10 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
                       value={loginData.email}
                       onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                       data-testid="input-email"
@@ -137,14 +160,16 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
+                  <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                    Senha
+                  </Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      className="pl-10 pr-12"
+                      placeholder="Digite sua senha"
+                      className="pl-10 pr-12 h-12 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
                       value={loginData.password}
                       onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                       data-testid="input-password"
@@ -154,7 +179,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 p-0 hover:bg-gray-100"
                       onClick={() => setShowPassword(!showPassword)}
                       data-testid="button-toggle-password"
                     >
@@ -166,119 +191,45 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                     </Button>
                   </div>
                 </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="remember" 
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked === true)}
+                      data-testid="checkbox-remember"
+                    />
+                    <Label htmlFor="remember" className="text-sm text-gray-600">
+                      Lembrar de mim
+                    </Label>
+                  </div>
+                  <Button variant="ghost" className="text-sm text-blue-600 hover:text-blue-700 p-0 h-auto">
+                    Esqueceu a senha?
+                  </Button>
+                </div>
                 
-                <Button type="submit" className="w-full" data-testid="button-login">
-                  Entrar
+                <Button 
+                  type="submit" 
+                  className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                  data-testid="button-login"
+                >
+                  Entrar na Plataforma
                 </Button>
               </form>
-            </TabsContent>
-            
-            <TabsContent value="register">
-              <form onSubmit={handleRegister} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome completo</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder="João Silva"
-                      className="pl-10"
-                      value={registerData.name}
-                      onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
-                      data-testid="input-register-name"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="register-email">E-mail</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                    <Input
-                      id="register-email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      className="pl-10"
-                      value={registerData.email}
-                      onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
-                      data-testid="input-register-email"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="register-password">Senha</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                    <Input
-                      id="register-password"
-                      type={showRegisterPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      className="pl-10 pr-12"
-                      value={registerData.password}
-                      onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
-                      data-testid="input-register-password"
-                      required
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
-                      onClick={() => setShowRegisterPassword(!showRegisterPassword)}
-                      data-testid="button-toggle-register-password"
-                    >
-                      {showRegisterPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirmar senha</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                    <Input
-                      id="confirm-password"
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      className="pl-10 pr-12"
-                      value={registerData.confirmPassword}
-                      onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
-                      data-testid="input-confirm-password"
-                      required
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      data-testid="button-toggle-confirm-password"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                
-                <Button type="submit" className="w-full" data-testid="button-register">
-                  Criar conta
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+
+              <div className="mt-6 text-center">
+                <p className="text-sm text-gray-600">
+                  Não tem uma conta?{" "}
+                  <Button variant="ghost" className="text-blue-600 hover:text-blue-700 p-0 h-auto font-medium">
+                    Solicitar acesso
+                  </Button>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
