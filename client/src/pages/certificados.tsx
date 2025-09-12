@@ -161,11 +161,13 @@ export default function CertificadosPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center py-12">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">Carregando certificados...</p>
+      <div className="min-h-screen bg-gray-50">
+        <div className="p-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center py-12">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p className="text-gray-600">Carregando certificados...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -173,27 +175,28 @@ export default function CertificadosPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold">Certificados Digitais</h1>
-            <p className="text-muted-foreground">Gerencie seus certificados para assinatura digital</p>
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Certificados Digitais</h1>
+              <p className="text-gray-600 text-base">Gerencie seus certificados para assinatura digital</p>
+            </div>
           
           <div className="flex gap-2">
-            <Button onClick={() => refetch()} variant="outline" data-testid="button-refresh-certificates">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Atualizar
-            </Button>
-            
-            <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-upload-certificate">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Novo Certificado
-                </Button>
-              </DialogTrigger>
+              <Button onClick={() => refetch()} variant="outline" data-testid="button-refresh-certificates" className="bg-gray-50 border-gray-200 hover:bg-gray-100">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Atualizar
+              </Button>
+              
+              <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button data-testid="button-upload-certificate" className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Upload className="w-4 h-4 mr-2" />
+                    Novo Certificado
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Enviar Certificado Digital</DialogTitle>
@@ -260,108 +263,114 @@ export default function CertificadosPage() {
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="list" data-testid="tab-certificates-list">
-              Meus Certificados ({certificates.length})
-            </TabsTrigger>
-            <TabsTrigger value="info" data-testid="tab-certificates-info">Informações</TabsTrigger>
-          </TabsList>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="bg-gray-100">
+              <TabsTrigger value="list" data-testid="tab-certificates-list" className="data-[state=active]:bg-white">
+                Meus Certificados ({certificates.length})
+              </TabsTrigger>
+              <TabsTrigger value="info" data-testid="tab-certificates-info" className="data-[state=active]:bg-white">Informações</TabsTrigger>
+            </TabsList>
           
           <TabsContent value="list" className="space-y-4">
             {/* Certificates List */}
             <div className="grid gap-4">
-              {certificates.map((certificate) => (
-                <Card key={certificate.id}>
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <Shield className="w-6 h-6 text-primary" />
-                        </div>
+                {certificates.map((certificate) => (
+                  <Card key={certificate.id} className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                            <Shield className="w-6 h-6 text-blue-600" />
+                          </div>
                         
-                        <div className="space-y-1">
-                          <h3 className="font-semibold">{certificate.name}</h3>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span>Tipo: {certificate.type}</span>
-                            {certificate.serial && <span>Série: {certificate.serial}</span>}
+                          <div className="space-y-1">
+                            <h3 className="font-semibold text-gray-900">{certificate.name}</h3>
+                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                              <span>Tipo: {certificate.type}</span>
+                              {certificate.serial && <span>Série: {certificate.serial}</span>}
+                            </div>
+                            <div className="flex items-center gap-4 text-sm">
+                              <span className="text-gray-700">
+                                Válido de {formatDate(certificate.validFrom)} até {formatDate(certificate.validTo)}
+                              </span>
+                              {getStatusBadge(certificate)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Criado em {formatDate(certificate.createdAt)}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-4 text-sm">
-                            <span>
-                              Válido de {formatDate(certificate.validFrom)} até {formatDate(certificate.validTo)}
-                            </span>
-                            {getStatusBadge(certificate)}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Criado em {formatDate(certificate.createdAt)}
-                          </div>
-                        </div>
                       </div>
                       
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleCertificateAction('view', certificate.id)}
-                          data-testid={`button-view-${certificate.id}`}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleCertificateAction('delete', certificate.id)}
-                          disabled={deleteCertificateMutation.isPending}
-                          data-testid={`button-delete-${certificate.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleCertificateAction('view', certificate.id)}
+                            data-testid={`button-view-${certificate.id}`}
+                            className="bg-gray-50 border-gray-200 hover:bg-gray-100"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleCertificateAction('delete', certificate.id)}
+                            disabled={deleteCertificateMutation.isPending}
+                            data-testid={`button-delete-${certificate.id}`}
+                            className="bg-red-50 border-red-200 text-red-600 hover:bg-red-100"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
               
-              {certificates.length === 0 && (
-                <div className="text-center py-12">
-                  <Shield className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Nenhum certificado encontrado</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Envie seu primeiro certificado digital para começar a assinar documentos
-                  </p>
-                  <Button onClick={() => setIsUploadDialogOpen(true)}>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Enviar Certificado
-                  </Button>
-                </div>
-              )}
+                {certificates.length === 0 && (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                      <Shield className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Nenhum certificado encontrado</h3>
+                    <p className="text-gray-600 mb-4">
+                      Envie seu primeiro certificado digital para começar a assinar documentos
+                    </p>
+                    <Button onClick={() => setIsUploadDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                      <Upload className="w-4 h-4 mr-2" />
+                      Enviar Certificado
+                    </Button>
+                  </div>
+                )}
             </div>
           </TabsContent>
           
           <TabsContent value="info" className="space-y-4">
             <div className="grid gap-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Key className="w-5 h-5" />
-                    Sobre Certificados Digitais
-                  </CardTitle>
-                </CardHeader>
+                <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-gray-900 text-lg">
+                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                        <Key className="w-4 h-4 text-green-600" />
+                      </div>
+                      Sobre Certificados Digitais
+                    </CardTitle>
+                  </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <h4 className="font-semibold mb-2">Tipos de Certificado</h4>
-                    <ul className="space-y-2 text-sm text-muted-foreground">
-                      <li><strong>A1:</strong> Armazenado no computador, válido por 1 ano</li>
-                      <li><strong>A3:</strong> Armazenado em token/cartão, válido por até 3 anos</li>
-                    </ul>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2">Formatos Suportados</h4>
-                    <ul className="space-y-1 text-sm text-muted-foreground">
-                      <li>• .pfx (PKCS#12)</li>
-                      <li>• .p12 (PKCS#12)</li>
-                    </ul>
+                      <h4 className="font-semibold text-gray-900 mb-2">Tipos de Certificado</h4>
+                      <ul className="space-y-2 text-sm text-gray-600">
+                        <li><strong>A1:</strong> Armazenado no computador, válido por 1 ano</li>
+                        <li><strong>A3:</strong> Armazenado em token/cartão, válido por até 3 anos</li>
+                      </ul>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-2">Formatos Suportados</h4>
+                      <ul className="space-y-1 text-sm text-gray-600">
+                        <li>• .pfx (PKCS#12)</li>
+                        <li>• .p12 (PKCS#12)</li>
+                      </ul>
                   </div>
                   
                   <Alert>
@@ -373,23 +382,26 @@ export default function CertificadosPage() {
                 </CardContent>
               </Card>
               
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5" />
-                    Segurança
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm text-muted-foreground">
-                  <p>• Senhas não são armazenadas, apenas o hash de verificação</p>
-                  <p>• Certificados são criptografados com AES-256</p>
-                  <p>• Acesso restrito apenas ao proprietário</p>
-                  <p>• Logs de auditoria para todas as operações</p>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
+                <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-gray-900 text-lg">
+                      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <AlertTriangle className="w-4 h-4 text-orange-600" />
+                      </div>
+                      Segurança
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm text-gray-600">
+                    <p>• Senhas não são armazenadas, apenas o hash de verificação</p>
+                    <p>• Certificados são criptografados com AES-256</p>
+                    <p>• Acesso restrito apenas ao proprietário</p>
+                    <p>• Logs de auditoria para todas as operações</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   );

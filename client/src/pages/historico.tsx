@@ -108,11 +108,13 @@ export default function HistoricoPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center py-12">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">Carregando histórico...</p>
+      <div className="min-h-screen bg-gray-50">
+        <div className="p-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center py-12">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p className="text-gray-600">Carregando histórico...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -120,51 +122,54 @@ export default function HistoricoPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Histórico</h1>
-            <p className="text-muted-foreground">Acompanhe a geração e assinatura de documentos</p>
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Histórico</h1>
+              <p className="text-gray-600 text-base">Acompanhe a geração e assinatura de documentos</p>
+            </div>
           
-          <Button onClick={handleRefresh} data-testid="button-refresh-history">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Atualizar
-          </Button>
+            <Button onClick={handleRefresh} data-testid="button-refresh-history" className="bg-blue-600 hover:bg-blue-700 text-white">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Atualizar
+            </Button>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="w-5 h-5" />
-              Filtros
-            </CardTitle>
-          </CardHeader>
+          {/* Filters */}
+          <Card className="mb-6 bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-gray-900 text-lg">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Filter className="w-4 h-4 text-blue-600" />
+                </div>
+                Filtros
+              </CardTitle>
+            </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">Buscar</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                  <Input
-                    placeholder="Buscar documentos..."
-                    className="pl-10"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    data-testid="input-search-history"
-                  />
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Buscar</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="Buscar documentos..."
+                      className="pl-10 bg-white border-gray-200"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      data-testid="input-search-history"
+                    />
                 </div>
               </div>
               
-              <div>
-                <label className="text-sm font-medium mb-2 block">Tipo de Operação</label>
-                <Select value={actionFilter} onValueChange={setActionFilter}>
-                  <SelectTrigger data-testid="select-action-filter">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Tipo de Operação</label>
+                  <Select value={actionFilter} onValueChange={setActionFilter}>
+                    <SelectTrigger data-testid="select-action-filter" className="bg-white border-gray-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
                     <SelectItem value="all">Todas</SelectItem>
                     <SelectItem value="document_generated">Documento Individual</SelectItem>
                     <SelectItem value="batch_generated">Geração em Lote</SelectItem>
@@ -175,107 +180,116 @@ export default function HistoricoPage() {
                 </Select>
               </div>
               
-              <div>
-                <label className="text-sm font-medium mb-2 block">Status</label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger data-testid="select-status-filter">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Status</label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger data-testid="select-status-filter" className="bg-white border-gray-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
                     <SelectItem value="all">Todos</SelectItem>
                     <SelectItem value="success">Sucesso</SelectItem>
                     <SelectItem value="error">Erro</SelectItem>
-                  </SelectContent>
-                </Select>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* History Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Histórico de Documentos ({filteredHistory.length})</CardTitle>
-            <CardDescription>Histórico de geração individual, lote e upload de documentos</CardDescription>
-          </CardHeader>
+          {/* History Table */}
+          <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-gray-900 text-lg">
+                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                  <History className="w-4 h-4 text-green-600" />
+                </div>
+                Histórico de Documentos ({filteredHistory.length})
+              </CardTitle>
+              <CardDescription className="text-gray-600">Histórico de geração individual, lote e upload de documentos</CardDescription>
+            </CardHeader>
           <CardContent>
-            <div className="border rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Operação</TableHead>
-                    <TableHead>Documento</TableHead>
-                    <TableHead>Data/Hora</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
+              <div className="bg-white border border-gray-200 rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="text-gray-600">Operação</TableHead>
+                      <TableHead className="text-gray-600">Documento</TableHead>
+                      <TableHead className="text-gray-600">Data/Hora</TableHead>
+                      <TableHead className="text-gray-600">Status</TableHead>
+                      <TableHead className="text-gray-600">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
                 <TableBody>
-                  {filteredHistory.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5">
-                            {getActionIcon(item.action, item.type)}
+                    {filteredHistory.map((item) => (
+                      <TableRow key={item.id} className="hover:bg-gray-50">
+                        <TableCell>
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5">
+                              {getActionIcon(item.action, item.type)}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{getActionLabel(item.action)}</p>
+                              <p className="text-sm text-gray-600">{item.message}</p>
+                              {item.details && (
+                                <p className="text-xs text-gray-500 mt-1">{item.details}</p>
+                              )}
+                            </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
                           <div>
-                            <p className="font-medium">{getActionLabel(item.action)}</p>
-                            <p className="text-sm text-muted-foreground">{item.message}</p>
-                            {item.details && (
-                              <p className="text-xs text-muted-foreground mt-1">{item.details}</p>
+                            {item.documentName && (
+                              <p className="font-mono text-sm text-gray-900">{item.documentName}</p>
+                            )}
+                            {item.template && (
+                              <p className="text-sm text-gray-600">{item.template}</p>
+                            )}
+                            {!item.documentName && !item.template && (
+                              <span className="text-sm text-gray-500">N/A</span>
                             )}
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          {item.documentName && (
-                            <p className="font-mono text-sm">{item.documentName}</p>
-                          )}
-                          {item.template && (
-                            <p className="text-sm text-muted-foreground">{item.template}</p>
-                          )}
-                          {!item.documentName && !item.template && (
-                            <span className="text-sm text-muted-foreground">N/A</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-sm">{formatDateTime(item.createdAt)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(item.status)}</TableCell>
-                      <TableCell>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleViewDetails(item.id)}
-                          data-testid={`button-view-details-${item.id}`}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <span className="text-sm text-gray-600">{formatDateTime(item.createdAt)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(item.status)}</TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewDetails(item.id)}
+                            data-testid={`button-view-details-${item.id}`}
+                            className="bg-gray-50 border-gray-200 hover:bg-gray-100"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                 </TableBody>
               </Table>
               
-              {filteredHistory.length === 0 && (
-                <div className="text-center py-12">
-                  <History className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Nenhuma atividade encontrada</h3>
-                  <p className="text-muted-foreground">
-                    {searchTerm || actionFilter !== 'all' || statusFilter !== 'all'
-                      ? 'Tente ajustar os filtros' 
-                      : 'O histórico aparecerá aqui conforme você gerar documentos'}
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                {filteredHistory.length === 0 && (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                      <History className="w-8 h-8 text-green-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Nenhuma atividade encontrada</h3>
+                    <p className="text-gray-600">
+                      {searchTerm || actionFilter !== 'all' || statusFilter !== 'all'
+                        ? 'Tente ajustar os filtros' 
+                        : 'O histórico aparecerá aqui conforme você gerar documentos'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

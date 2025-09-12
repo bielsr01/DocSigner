@@ -470,20 +470,26 @@ export default function GerarDocumentosPage() {
   };
 
   return (
-    <div className="p-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-2">Gerar Documentos</h1>
-          <p className="text-muted-foreground">Crie documentos personalizados a partir dos seus modelos</p>
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Gerar Documentos</h1>
+            <p className="text-gray-600 text-base">Crie documentos personalizados a partir dos seus modelos</p>
+          </div>
 
-        <div className="space-y-6">
-          {/* Configuration */}
-          <Card>
-            <CardHeader>
-              <CardTitle>1. Configurações</CardTitle>
-              <CardDescription>Configure as opções de geração e assinatura</CardDescription>
-            </CardHeader>
+          <div className="space-y-6">
+            {/* Configuration */}
+            <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-gray-900 text-lg">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <FileSignature className="w-4 h-4 text-blue-600" />
+                  </div>
+                  1. Configurações
+                </CardTitle>
+                <CardDescription className="text-gray-600">Configure as opções de geração e assinatura</CardDescription>
+              </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -856,39 +862,40 @@ export default function GerarDocumentosPage() {
             </Card>
           )}
 
-          {/* Generated Documents History */}
-          {generatedDocuments.length > 0 && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Histórico de Documentos</CardTitle>
-                    <CardDescription>
-                      Acompanhe o status dos documentos gerados ({generatedDocuments.length} total)
-                    </CardDescription>
-                  </div>
-                  <Button 
-                    variant="outline"
-                    onClick={handleRefreshStatus}
-                    disabled={isRefreshing}
-                    data-testid="button-refresh-history"
-                  >
-                    <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    Atualizar
-                  </Button>
+            {/* Generated Documents History */}
+            {generatedDocuments.length > 0 && (
+              <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-gray-900 text-lg">Histórico de Documentos</CardTitle>
+                      <CardDescription className="text-gray-600">
+                        Acompanhe o status dos documentos gerados ({generatedDocuments.length} total)
+                      </CardDescription>
+                    </div>
+                    <Button 
+                      variant="outline"
+                      onClick={handleRefreshStatus}
+                      disabled={isRefreshing}
+                      data-testid="button-refresh-history"
+                      className="bg-gray-50 border-gray-200 hover:bg-gray-100"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                      Atualizar
+                    </Button>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {generatedDocuments.map((doc) => (
-                    <div key={doc.id} className="border rounded-lg p-4">
+                    <div key={doc.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors duration-300">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                          <h4 className="font-medium">{doc.batchName}</h4>
-                          <p className="text-sm text-muted-foreground">
+                          <h4 className="font-medium text-gray-900">{doc.batchName}</h4>
+                          <p className="text-sm text-gray-600">
                             {doc.documentsCount === 1 ? '1 documento' : `${doc.documentsCount} documentos`} • {doc.templateName}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <p className="text-xs text-gray-500 mt-1">
                             Criado em: {doc.createdAt.toLocaleString('pt-BR')}
                             {doc.completedAt && ` • Concluído em: ${doc.completedAt.toLocaleString('pt-BR')}`}
                           </p>
@@ -932,6 +939,7 @@ export default function GerarDocumentosPage() {
                               variant="outline"
                               onClick={() => handleDownloadDocument(doc)}
                               data-testid={`button-download-${doc.id}`}
+                              className="bg-orange-100 border-orange-200 text-orange-700 hover:bg-orange-200"
                             >
                               <Download className="w-3 h-3 mr-1" />
                               {doc.documentsCount > 1 ? 'Download ZIP' : 'Download'}
@@ -943,12 +951,12 @@ export default function GerarDocumentosPage() {
                       <div className="text-sm">
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <span className="text-muted-foreground">Documento:</span>
-                            <span className="ml-2">{doc.documentName}</span>
+                            <span className="text-gray-500">Documento:</span>
+                            <span className="ml-2 text-gray-700">{doc.documentName}</span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Certificado:</span>
-                            <span className="ml-2">{doc.certificateName}</span>
+                            <span className="text-gray-500">Certificado:</span>
+                            <span className="ml-2 text-gray-700">{doc.certificateName}</span>
                           </div>
                         </div>
                         
@@ -966,6 +974,7 @@ export default function GerarDocumentosPage() {
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }
