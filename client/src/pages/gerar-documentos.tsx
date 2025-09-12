@@ -148,16 +148,38 @@ export default function GerarDocumentosPage() {
     const lines = csvData.trim().split('\n');
     const headers = lines[0].split(',').map(h => h.trim());
     
-    const processedData = lines.slice(1).map(line => {
+    // Validate headers match template variables
+    const templateVars = selectedTemplateData.variables;
+    const missingVars = templateVars.filter(v => !headers.includes(v));
+    
+    if (missingVars.length > 0) {
+      toast({
+        title: "Colunas faltando",
+        description: `As seguintes variáveis não foram encontradas nos dados: ${missingVars.join(', ')}`,
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const processedData = lines.slice(1).filter(line => line.trim()).map(line => {
       const values = line.split(',').map(v => v.trim());
       const row: Record<string, string> = {};
-      headers.forEach((header, index) => {
-        row[header] = values[index] || '';
+      
+      // Map only template variables
+      templateVars.forEach(variable => {
+        const headerIndex = headers.findIndex(h => h === variable);
+        row[variable] = headerIndex >= 0 ? (values[headerIndex] || '') : '';
       });
+      
       return row;
     });
     
     setBatchData(processedData);
+    
+    toast({
+      title: "Dados CSV processados",
+      description: `${processedData.length} registros carregados com sucesso`
+    });
   };
 
   const handleExcelDataPaste = () => {
@@ -169,16 +191,38 @@ export default function GerarDocumentosPage() {
     const lines = excelData.trim().split('\n');
     const headers = lines[0].split('\t').map(h => h.trim());
     
-    const processedData = lines.slice(1).map(line => {
+    // Validate headers match template variables
+    const templateVars = selectedTemplateData.variables;
+    const missingVars = templateVars.filter(v => !headers.includes(v));
+    
+    if (missingVars.length > 0) {
+      toast({
+        title: "Colunas faltando",
+        description: `As seguintes variáveis não foram encontradas nos dados: ${missingVars.join(', ')}`,
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const processedData = lines.slice(1).filter(line => line.trim()).map(line => {
       const values = line.split('\t').map(v => v.trim());
       const row: Record<string, string> = {};
-      headers.forEach((header, index) => {
-        row[header] = values[index] || '';
+      
+      // Map only template variables
+      templateVars.forEach(variable => {
+        const headerIndex = headers.findIndex(h => h === variable);
+        row[variable] = headerIndex >= 0 ? (values[headerIndex] || '') : '';
       });
+      
       return row;
     });
     
     setBatchData(processedData);
+    
+    toast({
+      title: "Dados Excel processados",
+      description: `${processedData.length} registros carregados com sucesso`
+    });
   };
 
   const handleGenerate = async () => {
@@ -600,12 +644,15 @@ export default function GerarDocumentosPage() {
                       <Label htmlFor="csv-data">Dados CSV</Label>
                       <Textarea
                         id="csv-data"
-                        placeholder={`Cole os dados no formato CSV:\n${selectedTemplateData.variables.join(', ')}\nJoão Silva, Curso React, 15/01/2024, Prof. Maria\nAna Costa, Curso Node.js, 16/01/2024, Prof. João`}
+                        placeholder={`Cole os dados no formato CSV (primeira linha deve ser os cabeçalhos):\n${selectedTemplateData.variables.join(', ')}\nJoão Silva, Curso React, 15/01/2024, Prof. Maria\nAna Costa, Curso Node.js, 16/01/2024, Prof. João`}
                         rows={6}
                         value={csvData}
                         onChange={(e) => setCsvData(e.target.value)}
                         data-testid="textarea-csv-data"
                       />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        <strong>Importante:</strong> A primeira linha deve conter exatamente os nomes das variáveis: {selectedTemplateData.variables.join(', ')}
+                      </p>
                     </div>
                     <Button onClick={handleCsvDataPaste} data-testid="button-process-csv">
                       <Copy className="w-4 h-4 mr-2" />
@@ -618,14 +665,16 @@ export default function GerarDocumentosPage() {
                       <Label htmlFor="excel-data">Dados do Excel</Label>
                       <Textarea
                         id="excel-data"
-                        placeholder={`Cole os dados copiados diretamente do Excel:\n${selectedTemplateData.variables.join('\t')}\nJoão Silva\tCurso React\t15/01/2024\tProf. Maria\nAna Costa\tCurso Node.js\t16/01/2024\tProf. João`}
+                        placeholder={`Cole os dados copiados diretamente do Excel (primeira linha deve ser cabeçalhos):\n${selectedTemplateData.variables.join('\t')}\nJoão Silva\tCurso React\t15/01/2024\tProf. Maria\nAna Costa\tCurso Node.js\t16/01/2024\tProf. João`}
                         rows={6}
                         value={excelData}
                         onChange={(e) => setExcelData(e.target.value)}
                         data-testid="textarea-excel-data"
                       />
                       <p className="text-xs text-muted-foreground mt-2">
-                        Dica: Selecione e copie (Ctrl+C) as linhas e colunas diretamente do Excel, depois cole aqui
+                        <strong>Dicas:</strong> 
+                        <br />• Primeira linha deve conter exatamente: {selectedTemplateData.variables.join(', ')}
+                        <br />• Selecione e copie (Ctrl+C) diretamente do Excel, depois cole aqui
                       </p>
                     </div>
                     <Button onClick={handleExcelDataPaste} data-testid="button-process-excel">
