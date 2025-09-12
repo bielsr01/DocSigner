@@ -116,78 +116,94 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-            <p className="text-muted-foreground">Visão geral do seu sistema de documentos</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 relative overflow-hidden">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-transparent"></div>
+      <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-48 translate-x-48"></div>
+      <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-32 -translate-x-32"></div>
+      <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-white/3 rounded-full"></div>
+      
+      <div className="relative z-10 p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h1 className="text-4xl font-bold text-white mb-3 drop-shadow-lg">Dashboard</h1>
+              <p className="text-blue-100 text-lg">Visão geral do seu sistema de documentos</p>
+            </div>
+            
+            <Button 
+              onClick={handleRefreshStats}
+              disabled={isLoading}
+              className="bg-white/20 backdrop-blur-sm border-white/30 text-white hover:bg-white/30 transition-all duration-300 shadow-lg"
+              data-testid="button-refresh-dashboard"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
           </div>
-          
-          <Button 
-            onClick={handleRefreshStats}
-            disabled={isLoading}
-            data-testid="button-refresh-dashboard"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
-        </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Documentos</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalDocuments.toLocaleString('pt-BR')}</div>
-              <p className="text-xs text-muted-foreground">
-                {documents.length > 0 ? `${documents.length} documentos` : 'Nenhum documento'}
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Modelos Ativos</CardTitle>
-              <Upload className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{templatesCount}</div>
-              <p className="text-xs text-muted-foreground">
-                Prontos para uso
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Certificados</CardTitle>
-              <FileSignature className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{certificatesCount}</div>
-              <p className="text-xs text-muted-foreground">
-                Para assinatura digital
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Este Mês</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{pendingSignatures}</div>
-              <p className="text-xs text-muted-foreground">
-                Aguardando assinatura
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1 hover:scale-105 group">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-white">Total de Documentos</CardTitle>
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center group-hover:bg-white/30 transition-colors duration-300">
+                  <FileText className="h-6 w-6 text-white" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-white mb-1">{totalDocuments.toLocaleString('pt-BR')}</div>
+                <p className="text-xs text-blue-100">
+                  {documents.length > 0 ? `${documents.length} documentos` : 'Nenhum documento'}
+                </p>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1 hover:scale-105 group">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-white">Modelos Ativos</CardTitle>
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center group-hover:bg-white/30 transition-colors duration-300">
+                  <Upload className="h-6 w-6 text-white" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-white mb-1">{templatesCount}</div>
+                <p className="text-xs text-blue-100">
+                  Prontos para uso
+                </p>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1 hover:scale-105 group">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-white">Certificados</CardTitle>
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center group-hover:bg-white/30 transition-colors duration-300">
+                  <FileSignature className="h-6 w-6 text-white" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-white mb-1">{certificatesCount}</div>
+                <p className="text-xs text-blue-100">
+                  Para assinatura digital
+                </p>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1 hover:scale-105 group">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-white">Este Mês</CardTitle>
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center group-hover:bg-white/30 transition-colors duration-300">
+                  <TrendingUp className="h-6 w-6 text-white" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-white mb-1">{pendingSignatures}</div>
+                <p className="text-xs text-blue-100">
+                  Aguardando assinatura
+                </p>
+              </CardContent>
+            </Card>
+          </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Quick Actions */}
