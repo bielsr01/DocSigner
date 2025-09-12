@@ -1,6 +1,7 @@
 import { 
   type User, 
   type InsertUser,
+  type UpsertUser,
   type Template,
   type InsertTemplate,
   type Certificate,
@@ -33,6 +34,8 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  // (IMPORTANT) these user operations are mandatory for Replit Auth.
+  upsertUser(user: UpsertUser): Promise<User>;
   
   // Template methods
   getTemplates(userId: string): Promise<Template[]>;
@@ -94,6 +97,22 @@ export class DatabaseStorage implements IStorage {
       name: user.name,
       role: user.role || "user",
     }).returning();
+    return result[0];
+  }
+
+  // (IMPORTANT) upsertUser method is mandatory for Replit Auth.
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const result = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
     return result[0];
   }
 

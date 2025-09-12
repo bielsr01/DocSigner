@@ -1,17 +1,34 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, index, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, index, unique, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Session storage table for Replit Auth
+// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
 // Users table - foundation for multi-user system
+// Updated to support Replit Auth while maintaining backward compatibility
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  passwordHash: text("password_hash").notNull(), // Changed from plaintext password
-  email: text("email"),
-  name: text("name"),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`), // Keep existing ID type
+  username: text("username").unique(), // Made optional for Replit Auth
+  passwordHash: text("password_hash"), // Made optional for Replit Auth
+  email: text("email").unique(), // Required for Replit Auth
+  firstName: text("first_name"), // Replit Auth field
+  lastName: text("last_name"), // Replit Auth field  
+  profileImageUrl: text("profile_image_url"), // Replit Auth field
+  name: text("name"), // Legacy field for backward compatibility
   role: text("role").notNull().default("user"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(), // Required for Replit Auth
 });
 
 // Templates table - user-isolated document templates
@@ -130,6 +147,15 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+// Replit Auth user upsert schema
+export const upsertUserSchema = createInsertSchema(users).pick({
+  id: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  profileImageUrl: true,
+});
+
 export const insertTemplateSchema = createInsertSchema(templates).omit({
   id: true,
   userId: true,
@@ -168,6 +194,7 @@ export const insertActivityLogSchema = createInsertSchema(activityLog).omit({
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpsertUser = z.infer<typeof upsertUserSchema>; // For Replit Auth
 export type User = typeof users.$inferSelect;
 
 export type InsertTemplate = z.infer<typeof insertTemplateSchema>;

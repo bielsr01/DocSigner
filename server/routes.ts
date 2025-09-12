@@ -19,42 +19,42 @@ import {
 import type { User } from "@shared/schema";
 import { CertificateReader } from "./pdf-signer";
 import { SecurityUtils, encryptPassword } from "./security-utils";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 
-// Extend Express Request to include session user
-declare module 'express-session' {
-  interface SessionData {
-    userId?: string;
+// Extend Express Request to include user from Replit Auth
+declare global {
+  namespace Express {
+    interface User {
+      claims: any;
+      access_token: string;
+      refresh_token: string;
+      expires_at: number;
+    }
   }
 }
 
-// Middleware to get current user from session
-const getCurrentUser = async (req: express.Request): Promise<User | null> => {
-  if (!req.session.userId) {
-    return null;
-  }
-  
-  try {
-    return await storage.getUser(req.session.userId) || null;
-  } catch (error) {
-    console.error('Error getting user from session:', error);
-    return null;
-  }
-};
-
-// Authentication middleware
-const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const user = await getCurrentUser(req);
-  if (!user) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-  
-  // Attach user to request for convenience
-  (req as any).user = user;
-  next();
-};
-
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Authentication routes
+  // Auth middleware - setup Replit Auth
+  await setupAuth(app);
+
+  // Auth routes for Replit Auth
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      // SECURITY: Remove passwordHash from response
+      const { passwordHash, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Legacy auth endpoints (for backward compatibility during transition)
   app.post("/api/auth/register", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
@@ -137,14 +137,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Legacy auth/me endpoint - redirect to new Replit Auth endpoint or handle legacy sessions
   app.get("/api/auth/me", async (req, res) => {
     try {
-      const user = await getCurrentUser(req);
-      if (!user) {
-        return res.status(401).json({ error: 'Not authenticated' });
+      // Check if this is a Replit Auth session
+      if (req.isAuthenticated && req.isAuthenticated() && req.user) {
+        const userId = (req.user as any).claims?.sub;
+        if (userId) {
+          const user = await storage.getUser(userId);
+          if (user) {
+            // SECURITY: Remove passwordHash from response
+            const { passwordHash, ...userWithoutPassword } = user;
+            return res.json(userWithoutPassword);
+          }
+        }
       }
-      const { passwordHash, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      
+      // Handle legacy session-based auth (for backward compatibility)
+      if (req.session.userId) {
+        const user = await storage.getUser(req.session.userId);
+        if (user) {
+          const { passwordHash, ...userWithoutPassword } = user;
+          return res.json(userWithoutPassword);
+        }
+      }
+      
+      return res.status(401).json({ error: 'Not authenticated' });
     } catch (error) {
       console.error('Get user error:', error);
       res.status(500).json({ error: 'Failed to get user' });
@@ -152,11 +170,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Templates routes
-  app.get("/api/templates", requireAuth, async (req, res) => {
+  app.get("/api/templates", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
-      const templates = await storage.getTemplates(user.id);
+      const templates = await storage.getTemplates(userId);
       res.json(templates);
     } catch (error) {
       console.error("Get templates error:", error);
@@ -164,9 +182,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/templates", requireAuth, upload.single('file'), async (req, res) => {
+  app.post("/api/templates", isAuthenticated, upload.single('file'), async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
       if (!req.file) {
         return res.status(400).json({ error: 'Template file is required' });
@@ -200,7 +218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const validatedData = insertTemplateSchema.parse(templateData);
-      const template = await storage.createTemplate(validatedData, user.id);
+      const template = await storage.createTemplate(validatedData, userId);
       
       // Log activity
       await storage.createActivityLog({
@@ -211,7 +229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: `Template "${template.name}" uploaded successfully`,
         details: `${template.variables.length} variables detected: ${template.variables.join(', ')}`,
         template: template.name
-      }, user.id);
+      }, userId);
       
       res.json(template);
     } catch (error) {
@@ -220,11 +238,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/templates/:id", requireAuth, async (req, res) => {
+  app.get("/api/templates/:id", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
-      const template = await storage.getTemplate(req.params.id, user.id);
+      const template = await storage.getTemplate(req.params.id, userId);
       if (!template) {
         return res.status(404).json({ error: "Template not found" });
       }
@@ -236,14 +254,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/templates/:id", requireAuth, async (req, res) => {
+  app.put("/api/templates/:id", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
       // Only allow updating safe fields, exclude server-managed fields
       const allowedFields = { name: req.body.name, variables: req.body.variables };
       const templateData = insertTemplateSchema.pick({ name: true, variables: true }).partial().parse(allowedFields);
-      const template = await storage.updateTemplate(req.params.id, templateData, user.id);
+      const template = await storage.updateTemplate(req.params.id, templateData, userId);
       
       if (!template) {
         return res.status(404).json({ error: "Template not found" });
@@ -256,11 +274,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/templates/:id", requireAuth, async (req, res) => {
+  app.delete("/api/templates/:id", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
-      const deleted = await storage.deleteTemplate(req.params.id, user.id);
+      const deleted = await storage.deleteTemplate(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Template not found" });
       }
@@ -273,10 +291,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Secure file download for templates
-  app.get("/api/templates/:id/download", requireAuth, async (req, res) => {
+  app.get("/api/templates/:id/download", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
-      const template = await storage.getTemplate(req.params.id, user.id);
+      const userId = (req as any).user.claims.sub;
+      const template = await storage.getTemplate(req.params.id, userId);
       
       if (!template) {
         return res.status(404).json({ error: 'Template not found' });
@@ -314,11 +332,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Certificates routes
-  app.get("/api/certificates", requireAuth, async (req, res) => {
+  app.get("/api/certificates", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
-      const certificates = await storage.getCertificates(user.id);
+      const certificates = await storage.getCertificates(userId);
       res.json(certificates);
     } catch (error) {
       console.error("Get certificates error:", error);
@@ -326,9 +344,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/certificates", requireAuth, upload.single('file'), async (req, res) => {
+  app.post("/api/certificates", isAuthenticated, upload.single('file'), async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
       if (!req.file) {
         return res.status(400).json({ error: 'Certificate file is required' });
@@ -376,7 +394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const validatedData = insertCertificateSchema.parse(certificateData);
-      const certificate = await storage.createCertificate(validatedData, user.id);
+      const certificate = await storage.createCertificate(validatedData, userId);
       
       // Log activity
       await storage.createActivityLog({
@@ -386,7 +404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "success",
         message: `Certificate "${certificate.name}" uploaded successfully`,
         details: certificate.serial ? `Serial: ${certificate.serial}` : 'Certificate uploaded'
-      }, user.id);
+      }, userId);
       
       res.json(certificate);
     } catch (error) {
@@ -395,11 +413,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/certificates/:id", requireAuth, async (req, res) => {
+  app.delete("/api/certificates/:id", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
-      const deleted = await storage.deleteCertificate(req.params.id, user.id);
+      const deleted = await storage.deleteCertificate(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Certificate not found" });
       }
@@ -412,10 +430,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Secure file download for certificates
-  app.get("/api/certificates/:id/download", requireAuth, async (req, res) => {
+  app.get("/api/certificates/:id/download", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
-      const certificate = await storage.getCertificate(req.params.id, user.id);
+      const userId = (req as any).user.claims.sub;
+      const certificate = await storage.getCertificate(req.params.id, userId);
       
       if (!certificate) {
         return res.status(404).json({ error: 'Certificate not found' });
@@ -461,11 +479,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Documents routes
-  app.get("/api/documents", requireAuth, async (req, res) => {
+  app.get("/api/documents", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
-      const documents = await storage.getDocuments(user.id);
+      const documents = await storage.getDocuments(userId);
       res.json(documents);
     } catch (error) {
       console.error("Get documents error:", error);
@@ -474,11 +492,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get only uploaded documents (not generated from templates)
-  app.get("/api/documents/uploaded", requireAuth, async (req, res) => {
+  app.get("/api/documents/uploaded", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
-      const documents = await storage.getDocuments(user.id);
+      const documents = await storage.getDocuments(userId);
       // Filter to only show documents with source='upload' (uploaded PDFs)
       const uploadedDocuments = documents.filter(doc => 
         doc.source === 'upload' || (doc.templateId === null && doc.batchId === null)
@@ -491,7 +509,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Debug upload endpoint with raw middleware
-  app.post("/api/test-upload-direct", requireAuth, (req, res) => {
+  app.post("/api/test-upload-direct", isAuthenticated, (req, res) => {
     console.log('🔍 DIRECT TEST - req.headers:', req.headers);
     console.log('🔍 DIRECT TEST - content-type:', req.get('content-type'));
     console.log('🔍 DIRECT TEST - req.body:', typeof req.body, Object.keys(req.body || {}));
@@ -509,9 +527,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload and sign PDFs endpoint - DEFINITIVE FIX
-  app.post("/api/documents/upload-and-sign", requireAuth, upload.array('files', 10), async (req, res) => {
+  app.post("/api/documents/upload-and-sign", isAuthenticated, upload.array('files', 10), async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       const { certificateId } = req.body;
       const files = req.files as Express.Multer.File[];
       
@@ -551,7 +569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             source: 'upload',
             originalFilename: file.originalname,
             mimeType: file.mimetype
-          }, user.id);
+          }, userId);
           
           
           // Sign the PDF immediately using the new signUploadedPDF function
@@ -562,11 +580,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               certificateId: certificateId,
               provider: 'FPDI/TCPDF',
               status: 'processing'
-            }, user.id);
+            }, userId);
             
             const signatureResult = await DocumentGenerator.signUploadedPDF(
               file.path,
-              user.id,
+              userId,
               document.id,
               certificateId,
               storage
@@ -577,13 +595,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await storage.updateDocument(document.id, {
                 status: 'signed',
                 storageRef: signatureResult.signedPath
-              }, user.id);
+              }, userId);
               
               // Update signature status to completed
               await storage.updateSignature(signature.id, {
                 status: 'completed',
                 signedAt: new Date()
-              }, user.id);
+              }, userId);
               
               
               // Log success activity
@@ -595,22 +613,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 message: `PDF "${document.filename}" uploaded and signed successfully`,
                 details: `Signed with certificate: ${certificateId}`,
                 documentName: document.filename
-              }, user.id);
+              }, userId);
               
               results.push({
                 success: true,
-                document: await storage.getDocument(document.id, user.id),
+                document: await storage.getDocument(document.id, userId),
                 filename: document.filename
               });
             } else {
               // Update document status to failed
-              await storage.updateDocument(document.id, { status: 'failed' }, user.id);
+              await storage.updateDocument(document.id, { status: 'failed' }, userId);
               
               // Update signature status to failed
               await storage.updateSignature(signature.id, {
                 status: 'failed',
                 errorMessage: signatureResult.error || 'Unknown signing error'
-              }, user.id);
+              }, userId);
               
               // Log failure activity
               await storage.createActivityLog({
@@ -621,7 +639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 message: `Failed to sign uploaded PDF "${document.filename}"`,
                 details: signatureResult.error || 'Unknown signing error',
                 documentName: document.filename
-              }, user.id);
+              }, userId);
               
               results.push({
                 success: false,
@@ -631,7 +649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           } catch (signingError) {
             console.error(`Signing error for ${document.filename}:`, signingError);
-            await storage.updateDocument(document.id, { status: 'failed' }, user.id);
+            await storage.updateDocument(document.id, { status: 'failed' }, userId);
             
             // Update signature to failed if it was created
             try {
@@ -641,7 +659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 provider: 'FPDI/TCPDF',
                 status: 'failed',
                 errorMessage: signingError instanceof Error ? signingError.message : 'Signing process failed'
-              }, user.id);
+              }, userId);
             } catch (signatureCreateError) {
               console.warn('Failed to create signature record for failed document:', signatureCreateError);
             }
@@ -680,9 +698,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/documents/generate", requireAuth, async (req, res) => {
+  app.post("/api/documents/generate", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
       const { templateId, data, batchData } = req.body;
       
@@ -691,7 +709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get template
-      const template = await storage.getTemplate(templateId, user.id);
+      const template = await storage.getTemplate(templateId, userId);
       if (!template) {
         return res.status(404).json({ error: "Template not found" });
       }
@@ -706,7 +724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           templateId,
           totalDocuments: batchData.length.toString(),
           completedDocuments: "0"
-        }, user.id);
+        }, userId);
         
         // Create documents for batch
         documentsToGenerate = batchData.map((data, index) => ({
@@ -726,7 +744,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               templateId,
               totalDocuments: data.length.toString(),
               completedDocuments: "0"
-            }, user.id);
+            }, userId);
             
             // Create documents for batch
             documentsToGenerate = data.map((docData, index) => ({
@@ -765,7 +783,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let failCount = 0;
       
       for (const docData of documentsToGenerate) {
-        const document = await storage.createDocument(docData, user.id);
+        const document = await storage.createDocument(docData, userId);
         let documentStatus = "failed";
         let errorMessage = "";
         
@@ -793,7 +811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               template.storageRef,
               variablesData,
               outputPath,
-              user.id,
+              userId,
               document.id,
               storage
             );
@@ -818,7 +836,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (documentStatus !== "failed") {
             await storage.updateDocument(document.id, {
               storageRef: outputPath
-            }, user.id);
+            }, userId);
           }
           
           successCount++;
@@ -833,7 +851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Mark document as failed with detailed error information
           await storage.updateDocument(document.id, {
             status: "failed"
-          }, user.id);
+          }, userId);
         }
         
         createdDocuments.push({
@@ -858,7 +876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             : `Error details: ${errorMessage}`,
           documentName: document.filename,
           template: template.name
-        }, user.id);
+        }, userId);
       }
       
       // Update batch completion status if applicable
@@ -866,7 +884,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateBatch(batch.id, {
           completedDocuments: successCount.toString(),
           status: failCount > 0 ? "partial" : "completed"
-        }, user.id);
+        }, userId);
         
         console.log(`Batch processing complete: ${successCount} successful, ${failCount} failed`);
       }
@@ -884,11 +902,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Document download route - serves signed PDFs when available
-  app.get("/api/documents/:id/download", requireAuth, async (req, res) => {
+  app.get("/api/documents/:id/download", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
-      const document = await storage.getDocument(req.params.id, user.id);
+      const document = await storage.getDocument(req.params.id, userId);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -949,7 +967,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: `${isSignedDocument ? 'Signed' : 'Non-signed'} document downloaded: ${document.filename}`,
         details: `Status: ${document.status} | File: ${safeFilename}`,
         documentName: document.filename
-      }, user.id);
+      }, userId);
       
     } catch (error) {
       console.error('Document download error:', error);
@@ -958,18 +976,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Batch ZIP download route - includes both ready and signed documents
-  app.get("/api/batches/:id/download", requireAuth, async (req, res) => {
+  app.get("/api/batches/:id/download", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
       // Get batch info
-      const batch = await storage.getBatch(req.params.id, user.id);
+      const batch = await storage.getBatch(req.params.id, userId);
       if (!batch) {
         return res.status(404).json({ error: "Batch not found" });
       }
       
       // Get all documents in this batch with status 'ready' OR 'signed'
-      const allDocuments = await storage.getDocuments(user.id);
+      const allDocuments = await storage.getDocuments(userId);
       const documents = allDocuments.filter((doc: any) => doc.batchId === req.params.id);
       if (!documents || documents.length === 0) {
         return res.status(404).json({ error: "No documents found in this batch" });
@@ -1156,7 +1174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 status: 'success',
                 message: `Batch ZIP downloaded: ${batch.label} (${filesAdded} documents)`,
                 details: `Total: ${filesAdded} files | Signed: ${signedFilesAdded} | Ready: ${readyFilesAdded} | ZIP: ${zipFilename}`
-              }, user.id).catch(logError => console.error('Activity log error:', logError));
+              }, userId).catch(logError => console.error('Activity log error:', logError));
             }
           });
           
@@ -1183,12 +1201,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Activity log routes
-  app.get("/api/activity", requireAuth, async (req, res) => {
+  app.get("/api/activity", isAuthenticated, async (req, res) => {
     try {
-      const user = (req as any).user;
+      const userId = (req as any).user.claims.sub;
       
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
-      const activities = await storage.getActivityLog(user.id, limit);
+      const activities = await storage.getActivityLog(userId, limit);
       res.json(activities);
     } catch (error) {
       console.error("Get activity error:", error);
@@ -1216,7 +1234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }));
 
   // Cleanup route for temporary files (optional, for maintenance)
-  app.delete("/api/temp/cleanup", requireAuth, async (req, res) => {
+  app.delete("/api/temp/cleanup", isAuthenticated, async (req, res) => {
     try {
       const user = (req as any).user;
       
