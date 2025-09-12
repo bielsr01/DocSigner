@@ -128,9 +128,26 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // First, check for legacy session-based authentication
+  if (req.session && req.session.userId) {
+    try {
+      // Import storage dynamically to avoid circular dependency
+      const { storage } = await import('./storage');
+      const user = await storage.getUser(req.session.userId);
+      if (user) {
+        // User exists in storage, allow access
+        return next();
+      }
+    } catch (error) {
+      console.error('Error validating legacy session:', error);
+      // Continue to check Replit Auth below
+    }
+  }
+
+  // Second, check for Replit Auth
   const user = req.user as any;
 
-  if (!req.isAuthenticated() || !user.expires_at) {
+  if (!req.isAuthenticated() || !user || !user.expires_at) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 

@@ -21,6 +21,21 @@ import { CertificateReader } from "./pdf-signer";
 import { SecurityUtils, encryptPassword } from "./security-utils";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 
+// Utility function to get userId from either legacy session or Replit Auth
+function getUserId(req: any): string | null {
+  // First check legacy session
+  if (req.session && req.session.userId) {
+    return req.session.userId;
+  }
+  
+  // Then check Replit Auth
+  if (req.user && req.user.claims && req.user.claims.sub) {
+    return req.user.claims.sub;
+  }
+  
+  return null;
+}
+
 // Extend Express Request to include user from Replit Auth
 declare global {
   namespace Express {
@@ -40,7 +55,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes for Replit Auth
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = getUserId(req);
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
@@ -172,7 +187,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Templates routes
   app.get("/api/templates", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       const templates = await storage.getTemplates(userId);
       res.json(templates);
@@ -184,7 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/templates", isAuthenticated, upload.single('file'), async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       if (!req.file) {
         return res.status(400).json({ error: 'Template file is required' });
@@ -240,7 +255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/templates/:id", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       const template = await storage.getTemplate(req.params.id, userId);
       if (!template) {
@@ -256,7 +271,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/templates/:id", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       // Only allow updating safe fields, exclude server-managed fields
       const allowedFields = { name: req.body.name, variables: req.body.variables };
@@ -276,7 +291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/templates/:id", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       const deleted = await storage.deleteTemplate(req.params.id, userId);
       if (!deleted) {
@@ -293,7 +308,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Secure file download for templates
   app.get("/api/templates/:id/download", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       const template = await storage.getTemplate(req.params.id, userId);
       
       if (!template) {
@@ -334,7 +349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Certificates routes
   app.get("/api/certificates", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       const certificates = await storage.getCertificates(userId);
       res.json(certificates);
@@ -346,7 +361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/certificates", isAuthenticated, upload.single('file'), async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       if (!req.file) {
         return res.status(400).json({ error: 'Certificate file is required' });
@@ -415,7 +430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/certificates/:id", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       const deleted = await storage.deleteCertificate(req.params.id, userId);
       if (!deleted) {
@@ -432,7 +447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Secure file download for certificates
   app.get("/api/certificates/:id/download", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       const certificate = await storage.getCertificate(req.params.id, userId);
       
       if (!certificate) {
@@ -481,7 +496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Documents routes
   app.get("/api/documents", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       const documents = await storage.getDocuments(userId);
       res.json(documents);
@@ -494,7 +509,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get only uploaded documents (not generated from templates)
   app.get("/api/documents/uploaded", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       const documents = await storage.getDocuments(userId);
       // Filter to only show documents with source='upload' (uploaded PDFs)
@@ -529,7 +544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload and sign PDFs endpoint - DEFINITIVE FIX
   app.post("/api/documents/upload-and-sign", isAuthenticated, upload.array('files', 10), async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       const { certificateId } = req.body;
       const files = req.files as Express.Multer.File[];
       
@@ -700,7 +715,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/documents/generate", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       const { templateId, data, batchData } = req.body;
       
@@ -904,7 +919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Document download route - serves signed PDFs when available
   app.get("/api/documents/:id/download", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       const document = await storage.getDocument(req.params.id, userId);
       if (!document) {
@@ -978,7 +993,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Batch ZIP download route - includes both ready and signed documents
   app.get("/api/batches/:id/download", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       // Get batch info
       const batch = await storage.getBatch(req.params.id, userId);
@@ -1203,7 +1218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Activity log routes
   app.get("/api/activity", isAuthenticated, async (req, res) => {
     try {
-      const userId = (req as any).user.claims.sub;
+      const userId = getUserId(req);
       
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
       const activities = await storage.getActivityLog(userId, limit);

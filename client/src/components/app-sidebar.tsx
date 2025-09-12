@@ -54,6 +54,11 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
       icon: Upload,
     },
     {
+      title: "Carregar Certificados",
+      url: "/certificados",
+      icon: Upload,
+    },
+    {
       title: "Histórico",
       url: "/historico",
       icon: History,
@@ -67,8 +72,8 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
 
   return (
     <Sidebar variant="sidebar" collapsible="offcanvas">
-      {/* Gradiente aplicado internamente */}
-      <div className="flex flex-col h-full bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 dark:from-blue-800 dark:via-blue-700 dark:to-teal-600 text-white">
+      {/* Gradiente aplicado internamente - tons de preto */}
+      <div className="flex flex-col h-full bg-gradient-to-br from-gray-900 via-gray-800 to-black dark:from-gray-900 dark:via-gray-800 dark:to-black text-white">
         
         <SidebarHeader>
           <div className="flex items-center gap-3 p-4">
@@ -83,7 +88,7 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
 
         <SidebarContent className="flex-1">
           <SidebarGroup>
-            <SidebarGroupLabel className="text-blue-100">Menu Principal</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-gray-300">Menu Principal</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {menuItems.map((item) => {
@@ -93,7 +98,7 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
                       <SidebarMenuButton 
                         asChild
                         isActive={isActive}
-                        className="text-white data-[active=true]:bg-white/20 hover:bg-white/10"
+                        className="text-white data-[active=true]:bg-white/20 hover:bg-white/15"
                         data-testid={`nav-${item.title.toLowerCase().replace(/ /g, '-')}`}
                       >
                         <Link href={item.url}>
@@ -122,7 +127,7 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
                 <p className="text-sm font-medium text-white truncate">
                   {currentUser?.name || 'Usuário'}
                 </p>
-                <p className="text-xs text-blue-100 truncate">
+                <p className="text-xs text-gray-300 truncate">
                   {currentUser?.email || 'email@example.com'}
                 </p>
               </div>
