@@ -190,7 +190,10 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       )}
                     </Button>
                   </div>
-                </div></old_str>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2"></old_str>
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
