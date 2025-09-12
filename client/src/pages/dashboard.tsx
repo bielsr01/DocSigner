@@ -205,102 +205,114 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Ações Rápidas</CardTitle>
-              <CardDescription>Acesse rapidamente as principais funcionalidades</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button 
-                className="w-full justify-start" 
-                variant="outline"
-                onClick={() => setLocation('/modelos')}
-                data-testid="button-quick-upload-template"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Enviar Novo Modelo
-              </Button>
-              
-              <Button 
-                className="w-full justify-start" 
-                variant="outline"
-                onClick={() => setLocation('/gerar')}
-                data-testid="button-quick-generate-document"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Gerar Documentos
-              </Button>
-              
-              <Button 
-                className="w-full justify-start" 
-                variant="outline"
-                onClick={() => setLocation('/certificados')}
-                data-testid="button-quick-manage-certificates"
-              >
-                <FileSignature className="w-4 h-4 mr-2" />
-                Gerenciar Certificados
-              </Button>
-              
-              <Button 
-                className="w-full justify-start" 
-                variant="outline"
-                onClick={() => setLocation('/download')}
-                data-testid="button-quick-download"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Downloads
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Atividade Recente</CardTitle>
-              <CardDescription>Últimas ações realizadas no sistema</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-start gap-3">
-                    <div className="mt-0.5">
-                      {getActivityIcon(activity.action)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">
-                        {activity.documentName || activity.template || 'Documento'}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-muted-foreground">
-                          {formatDateTime(activity.createdAt)}
-                        </span>
-                        {getStatusBadge(activity.status)}
-                      </div>
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Quick Actions */}
+            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1">
+              <CardHeader>
+                <CardTitle className="text-white text-lg">Ações Rápidas</CardTitle>
+                <CardDescription className="text-blue-100">Acesse rapidamente as principais funcionalidades</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button 
+                  className="w-full justify-start bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all duration-300 group" 
+                  variant="outline"
+                  onClick={() => setLocation('/modelos')}
+                  data-testid="button-quick-upload-template"
+                >
+                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white/30 transition-colors duration-300">
+                    <Upload className="w-4 h-4" />
                   </div>
-                ))}
-                {recentActivity.length === 0 && (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-muted-foreground">
-                      Nenhuma atividade recente
-                    </p>
-                  </div>
-                )}
+                  Enviar Novo Modelo
+                </Button>
                 
                 <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full mt-4"
-                  onClick={() => setLocation('/historico')}
-                  data-testid="button-view-full-history"
+                  className="w-full justify-start bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all duration-300 group" 
+                  variant="outline"
+                  onClick={() => setLocation('/gerar')}
+                  data-testid="button-quick-generate-document"
                 >
-                  Ver Histórico Completo
+                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white/30 transition-colors duration-300">
+                    <Plus className="w-4 h-4" />
+                  </div>
+                  Gerar Documentos
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
+                
+                <Button 
+                  className="w-full justify-start bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all duration-300 group" 
+                  variant="outline"
+                  onClick={() => setLocation('/certificados')}
+                  data-testid="button-quick-manage-certificates"
+                >
+                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white/30 transition-colors duration-300">
+                    <FileSignature className="w-4 h-4" />
+                  </div>
+                  Gerenciar Certificados
+                </Button>
+                
+                <Button 
+                  className="w-full justify-start bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all duration-300 group" 
+                  variant="outline"
+                  onClick={() => setLocation('/download')}
+                  data-testid="button-quick-download"
+                >
+                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white/30 transition-colors duration-300">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  Downloads
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Recent Activity */}
+            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1">
+              <CardHeader>
+                <CardTitle className="text-white text-lg">Atividade Recente</CardTitle>
+                <CardDescription className="text-blue-100">Últimas ações realizadas no sistema</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {recentActivity.map((activity) => (
+                    <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-colors duration-300">
+                      <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mt-0.5">
+                        {getActivityIcon(activity.action)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white">
+                          {activity.documentName || activity.template || 'Documento'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-blue-100">
+                            {formatDateTime(activity.createdAt)}
+                          </span>
+                          <Badge className={activity.status === 'success' ? 'bg-green-500/20 text-green-100 border-green-500/30' : 'bg-red-500/20 text-red-100 border-red-500/30'}>
+                            {activity.status === 'success' ? 'Sucesso' : 'Erro'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {recentActivity.length === 0 && (
+                    <div className="text-center py-8 text-blue-100">
+                      <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p className="text-sm">
+                        Nenhuma atividade recente
+                      </p>
+                    </div>
+                  )}
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full mt-4 bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all duration-300"
+                    onClick={() => setLocation('/historico')}
+                    data-testid="button-view-full-history"
+                  >
+                    Ver Histórico Completo
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
