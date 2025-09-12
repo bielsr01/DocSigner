@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -41,6 +41,7 @@ function Router() {
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [, setLocation] = useLocation();
   
   // Check if user is already authenticated on app load
   useEffect(() => {
@@ -77,6 +78,12 @@ function App() {
     console.log('🔄 Current user state before setUser:', user);
     setUser(userData);
     console.log('✅ setUser called successfully');
+    
+    // Force navigation to dashboard after login to prevent 404
+    setTimeout(() => {
+      console.log('🔀 Navigating to dashboard after login');
+      setLocation('/');
+    }, 100);
   };
   
   // Custom sidebar width for document management application
