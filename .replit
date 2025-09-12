@@ -1,9 +1,9 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "php-8.2", "cpp-clang14", "python-3.12"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
-channel = "stable-24_05"
+channel = "stable-25_05"
 packages = ["libreoffice", "docker", "php82", "php82Packages.composer", "ghostscript"]
 
 [deployment]
@@ -14,6 +14,10 @@ run = ["npm", "run", "start"]
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 33143
+externalPort = 4200
 
 [[ports]]
 localPort = 36367
@@ -35,7 +39,7 @@ externalPort = 3001
 PORT = "5000"
 
 [workflows]
-runButton = "Start Development Server"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
