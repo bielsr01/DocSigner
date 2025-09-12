@@ -272,7 +272,9 @@ export default function DashboardPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-sm font-medium text-gray-900 truncate">
-                            {activity.documentName || activity.template || 'Documento'}
+                            {activity.action === 'batch_generated' 
+                              ? 'Lote de Documentos' 
+                              : (activity.documentName || activity.template || 'Documento')}
                           </p>
                           <div className="flex items-center gap-2 flex-shrink-0">
                             <span className="text-xs text-gray-500 whitespace-nowrap">

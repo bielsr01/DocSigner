@@ -880,14 +880,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: "document",
           action: batch ? "batch_generated" : "document_generated",
           refId: document.id,
-          status: documentStatus === "ready" ? "success" : "error",
-          message: documentStatus === "ready"
+          status: (documentStatus === "ready" || documentStatus === "signed") ? "success" : "error",
+          message: (documentStatus === "ready" || documentStatus === "signed")
             ? (batch 
                 ? `Document generated successfully for batch "${batch.label}"`
-                : `Document "${document.filename}" generated successfully`)
+                : `Document "${document.filename}" generated ${documentStatus === "signed" ? "and signed " : ""}successfully`)
             : `Document generation failed: ${errorMessage}`,
-          details: documentStatus === "ready"
-            ? (batch ? `Batch generation with ${documentsToGenerate.length} documents` : "Single document generation")
+          details: (documentStatus === "ready" || documentStatus === "signed")
+            ? (batch ? `Batch generation with ${documentsToGenerate.length} documents` : `Single document generation${documentStatus === "signed" ? " with digital signature" : ""}`)
             : `Error details: ${errorMessage}`,
           documentName: document.filename,
           template: template.name
