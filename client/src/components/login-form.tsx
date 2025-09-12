@@ -121,9 +121,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
           <Card className="shadow-xl border-0 bg-white">
             <CardHeader className="text-center pb-2">
               <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center">
-                  <img src={fastSignLogo} alt="FastSign Pro" className="w-12 h-12 rounded-lg" />
-                </div>
+                <img src={fastSignLogo} alt="FastSign Pro" className="w-20 h-20" data-testid="img-logo" />
               </div>
               <CardTitle className="text-2xl font-bold text-gray-900">FastSign Pro</CardTitle>
               <CardDescription className="text-sm text-gray-600 mt-1">
