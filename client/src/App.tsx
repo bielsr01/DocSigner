@@ -130,7 +130,7 @@ function App() {
       <TooltipProvider>
         <SidebarProvider style={style as React.CSSProperties}>
           <div className="flex h-screen w-full">
-            <AppSidebar />
+            <AppSidebar currentUser={user} onLogout={handleLogout} />
             <div className="flex flex-col flex-1">
               <header className="flex items-center justify-between p-4 border-b border-border">
                 <SidebarTrigger data-testid="button-sidebar-toggle" />
