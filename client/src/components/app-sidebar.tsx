@@ -7,6 +7,7 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
@@ -31,22 +32,6 @@ interface AppSidebarProps {
 export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
   const [location] = useLocation();
 
-  // Fallback se currentUser não estiver definido
-  if (!currentUser) {
-    return (
-      <div className="relative bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400">
-        <Sidebar className="relative bg-transparent border-none text-white">
-          <SidebarContent>
-            <div className="p-4 text-center text-white">
-              Carregando...
-            </div>
-          </SidebarContent>
-        </Sidebar>
-      </div>
-    );
-  }
-
-  // Menu items - simples, sem descrições - ROTAS CORRIGIDAS
   const menuItems = [
     {
       title: "Dashboard",
@@ -75,40 +60,25 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
     },
   ];
 
-  const handleLogout = () => {
-    console.log('Logout triggered');
-    onLogout();
-  };
-
-  const handleAdminSettings = () => {
-    console.log('Admin settings triggered');
-    // TODO: Implement admin settings
-  };
-
   return (
-    <div className="relative bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 dark:from-blue-800 dark:via-blue-700 dark:to-teal-600">
-      {/* Background decoration overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent dark:from-blue-800/30"></div>
-      <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-16 translate-x-16"></div>
-      <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
-      
-      <Sidebar className="relative bg-transparent border-none text-white">
-        <SidebarContent>
-          {/* Logo Header */}
-          <div className="p-4 border-b border-white/20">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                <img src={logoUrl} alt="FastSign Pro" className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="font-bold text-white text-lg">FastSign Pro</span>
-              </div>
+    <Sidebar variant="sidebar" collapsible="offcanvas">
+      {/* Gradiente aplicado internamente */}
+      <div className="flex flex-col h-full bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 dark:from-blue-800 dark:via-blue-700 dark:to-teal-600 text-white">
+        
+        <SidebarHeader>
+          <div className="flex items-center gap-3 p-4">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <img src={logoUrl} alt="FastSign Pro" className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="font-bold text-white text-lg">FastSign Pro</span>
             </div>
           </div>
+        </SidebarHeader>
 
-          {/* Navigation Menu */}
+        <SidebarContent className="flex-1">
           <SidebarGroup>
-            <SidebarGroupLabel className="text-blue-100 font-medium">Menu Principal</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-blue-100">Menu Principal</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {menuItems.map((item) => {
@@ -117,9 +87,8 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton 
                         asChild
-                        className="data-[active=true]:bg-white/15 text-white"
-                        data-active={isActive}
-                        aria-current={isActive ? "page" : undefined}
+                        isActive={isActive}
+                        className="text-white data-[active=true]:bg-white/20 hover:bg-white/10"
                         data-testid={`nav-${item.title.toLowerCase().replace(/ /g, '-')}`}
                       >
                         <Link href={item.url}>
@@ -135,25 +104,24 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
           </SidebarGroup>
         </SidebarContent>
 
-        {/* User Profile Footer */}
         <SidebarFooter>
           <div className="p-4 border-t border-white/20">
             <div className="flex items-center gap-3 mb-3">
               <Avatar className="w-8 h-8 border-2 border-white/30">
-                <AvatarImage src={currentUser.avatar} />
+                <AvatarImage src={currentUser?.avatar} />
                 <AvatarFallback className="bg-white/20 text-white text-xs font-medium">
-                  {currentUser.name.split(' ').map(n => n[0]).join('')}
+                  {currentUser?.name?.split(' ').map(n => n[0]).join('') || 'U'}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
-                  {currentUser.name}
+                  {currentUser?.name || 'Usuário'}
                 </p>
                 <p className="text-xs text-blue-100 truncate">
-                  {currentUser.email}
+                  {currentUser?.email || 'email@example.com'}
                 </p>
               </div>
-              {currentUser.role === 'admin' && (
+              {currentUser?.role === 'admin' && (
                 <Badge className="bg-white/20 text-white text-xs border-white/30">
                   Admin
                 </Badge>
@@ -161,11 +129,10 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
             </div>
             
             <div className="space-y-2">
-              {currentUser.role === 'admin' && (
+              {currentUser?.role === 'admin' && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={handleAdminSettings}
                   className="w-full justify-start text-white hover:bg-white/15"
                   data-testid="button-admin-settings"
                 >
@@ -176,7 +143,7 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={handleLogout}
+                onClick={onLogout}
                 className="w-full justify-start text-white hover:bg-white/15"
                 data-testid="button-logout"
               >
@@ -186,7 +153,7 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
             </div>
           </div>
         </SidebarFooter>
-      </Sidebar>
-    </div>
+      </div>
+    </Sidebar>
   );
 }
