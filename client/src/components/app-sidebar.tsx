@@ -98,7 +98,7 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
                       <SidebarMenuButton 
                         asChild
                         isActive={isActive}
-                        className="text-white data-[active=true]:bg-white/20 hover:bg-white/15"
+                        className="text-white data-[active=true]:bg-white/20 data-[active=true]:text-white hover:bg-white/15 hover:text-white"
                         data-testid={`nav-${item.title.toLowerCase().replace(/ /g, '-')}`}
                       >
                         <Link href={item.url}>

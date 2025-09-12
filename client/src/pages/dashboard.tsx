@@ -270,16 +270,16 @@ export default function DashboardPage() {
                         {getActivityIcon(activity.action)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">
-                          {activity.documentName || activity.template || 'Documento'}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-gray-500">
-                            {formatDateTime(activity.createdAt)}
-                          </span>
-                          <Badge className={activity.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                            {activity.status === 'success' ? 'Sucesso' : 'Erro'}
-                          </Badge>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {activity.documentName || activity.template || 'Documento'}
+                          </p>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-gray-500 whitespace-nowrap">
+                              {formatDateTime(activity.createdAt)}
+                            </span>
+                            {getStatusBadge(activity.status)}
+                          </div>
                         </div>
                       </div>
                     </div>
