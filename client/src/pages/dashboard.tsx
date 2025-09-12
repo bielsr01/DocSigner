@@ -116,25 +116,18 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-teal-400 relative overflow-hidden">
-      {/* Background decorative elements */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-transparent"></div>
-      <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-48 translate-x-48"></div>
-      <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-32 -translate-x-32"></div>
-      <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-white/3 rounded-full"></div>
-      
-      <div className="relative z-10 p-6">
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-6">
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-3 drop-shadow-lg">Dashboard</h1>
-              <p className="text-blue-100 text-lg">Visão geral do seu sistema de documentos</p>
+              <h1 className="text-4xl font-bold text-gray-900 mb-3">Dashboard</h1>
+              <p className="text-gray-600 text-lg">Visão geral do seu sistema de documentos</p>
             </div>
             
             <Button 
               onClick={handleRefreshStats}
               disabled={isLoading}
-              className="bg-white/20 backdrop-blur-sm border-white/30 text-white hover:bg-white/30 transition-all duration-300 shadow-lg"
               data-testid="button-refresh-dashboard"
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
@@ -144,61 +137,61 @@ export default function DashboardPage() {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1 hover:scale-105 group">
+            <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white">Total de Documentos</CardTitle>
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center group-hover:bg-white/30 transition-colors duration-300">
-                  <FileText className="h-6 w-6 text-white" />
+                <CardTitle className="text-sm font-medium text-gray-600">Total de Documentos</CardTitle>
+                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                  <FileText className="h-6 w-6 text-blue-600" />
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-white mb-1">{totalDocuments.toLocaleString('pt-BR')}</div>
-                <p className="text-xs text-blue-100">
+                <div className="text-3xl font-bold text-gray-900 mb-1">{totalDocuments.toLocaleString('pt-BR')}</div>
+                <p className="text-xs text-gray-500">
                   {documents.length > 0 ? `${documents.length} documentos` : 'Nenhum documento'}
                 </p>
               </CardContent>
             </Card>
             
-            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1 hover:scale-105 group">
+            <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white">Modelos Ativos</CardTitle>
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center group-hover:bg-white/30 transition-colors duration-300">
-                  <Upload className="h-6 w-6 text-white" />
+                <CardTitle className="text-sm font-medium text-gray-600">Modelos Ativos</CardTitle>
+                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                  <Upload className="h-6 w-6 text-green-600" />
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-white mb-1">{templatesCount}</div>
-                <p className="text-xs text-blue-100">
+                <div className="text-3xl font-bold text-gray-900 mb-1">{templatesCount}</div>
+                <p className="text-xs text-gray-500">
                   Prontos para uso
                 </p>
               </CardContent>
             </Card>
             
-            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1 hover:scale-105 group">
+            <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white">Certificados</CardTitle>
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center group-hover:bg-white/30 transition-colors duration-300">
-                  <FileSignature className="h-6 w-6 text-white" />
+                <CardTitle className="text-sm font-medium text-gray-600">Certificados</CardTitle>
+                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                  <FileSignature className="h-6 w-6 text-purple-600" />
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-white mb-1">{certificatesCount}</div>
-                <p className="text-xs text-blue-100">
+                <div className="text-3xl font-bold text-gray-900 mb-1">{certificatesCount}</div>
+                <p className="text-xs text-gray-500">
                   Para assinatura digital
                 </p>
               </CardContent>
             </Card>
             
-            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1 hover:scale-105 group">
+            <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white">Este Mês</CardTitle>
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center group-hover:bg-white/30 transition-colors duration-300">
-                  <TrendingUp className="h-6 w-6 text-white" />
+                <CardTitle className="text-sm font-medium text-gray-600">Este Mês</CardTitle>
+                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-orange-600" />
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-white mb-1">{pendingSignatures}</div>
-                <p className="text-xs text-blue-100">
+                <div className="text-3xl font-bold text-gray-900 mb-1">{pendingSignatures}</div>
+                <p className="text-xs text-gray-500">
                   Aguardando assinatura
                 </p>
               </CardContent>
@@ -207,56 +200,56 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Quick Actions */}
-            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1">
+            <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
               <CardHeader>
-                <CardTitle className="text-white text-lg">Ações Rápidas</CardTitle>
-                <CardDescription className="text-blue-100">Acesse rapidamente as principais funcionalidades</CardDescription>
+                <CardTitle className="text-gray-900 text-lg">Ações Rápidas</CardTitle>
+                <CardDescription className="text-gray-600">Acesse rapidamente as principais funcionalidades</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <Button 
-                  className="w-full justify-start bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all duration-300 group" 
+                  className="w-full justify-start bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 transition-all duration-300 group" 
                   variant="outline"
                   onClick={() => setLocation('/modelos')}
                   data-testid="button-quick-upload-template"
                 >
-                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white/30 transition-colors duration-300">
-                    <Upload className="w-4 h-4" />
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3 group-hover:bg-blue-200 transition-colors duration-300">
+                    <Upload className="w-4 h-4 text-blue-600" />
                   </div>
                   Enviar Novo Modelo
                 </Button>
                 
                 <Button 
-                  className="w-full justify-start bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all duration-300 group" 
+                  className="w-full justify-start bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 transition-all duration-300 group" 
                   variant="outline"
                   onClick={() => setLocation('/gerar')}
                   data-testid="button-quick-generate-document"
                 >
-                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white/30 transition-colors duration-300">
-                    <Plus className="w-4 h-4" />
+                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3 group-hover:bg-green-200 transition-colors duration-300">
+                    <Plus className="w-4 h-4 text-green-600" />
                   </div>
                   Gerar Documentos
                 </Button>
                 
                 <Button 
-                  className="w-full justify-start bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all duration-300 group" 
+                  className="w-full justify-start bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 transition-all duration-300 group" 
                   variant="outline"
                   onClick={() => setLocation('/certificados')}
                   data-testid="button-quick-manage-certificates"
                 >
-                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white/30 transition-colors duration-300">
-                    <FileSignature className="w-4 h-4" />
+                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3 group-hover:bg-purple-200 transition-colors duration-300">
+                    <FileSignature className="w-4 h-4 text-purple-600" />
                   </div>
                   Gerenciar Certificados
                 </Button>
                 
                 <Button 
-                  className="w-full justify-start bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all duration-300 group" 
+                  className="w-full justify-start bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 transition-all duration-300 group" 
                   variant="outline"
                   onClick={() => setLocation('/download')}
                   data-testid="button-quick-download"
                 >
-                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mr-3 group-hover:bg-white/30 transition-colors duration-300">
-                    <Download className="w-4 h-4" />
+                  <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3 group-hover:bg-orange-200 transition-colors duration-300">
+                    <Download className="w-4 h-4 text-orange-600" />
                   </div>
                   Downloads
                 </Button>
@@ -264,27 +257,27 @@ export default function DashboardPage() {
             </Card>
 
             {/* Recent Activity */}
-            <Card className="bg-white/20 backdrop-blur-md border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:translate-y-1">
+            <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-1 border border-gray-200">
               <CardHeader>
-                <CardTitle className="text-white text-lg">Atividade Recente</CardTitle>
-                <CardDescription className="text-blue-100">Últimas ações realizadas no sistema</CardDescription>
+                <CardTitle className="text-gray-900 text-lg">Atividade Recente</CardTitle>
+                <CardDescription className="text-gray-600">Últimas ações realizadas no sistema</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-colors duration-300">
-                      <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mt-0.5">
+                    <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-300">
+                      <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center mt-0.5">
                         {getActivityIcon(activity.action)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white">
+                        <p className="text-sm font-medium text-gray-900">
                           {activity.documentName || activity.template || 'Documento'}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-blue-100">
+                          <span className="text-xs text-gray-500">
                             {formatDateTime(activity.createdAt)}
                           </span>
-                          <Badge className={activity.status === 'success' ? 'bg-green-500/20 text-green-100 border-green-500/30' : 'bg-red-500/20 text-red-100 border-red-500/30'}>
+                          <Badge className={activity.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
                             {activity.status === 'success' ? 'Sucesso' : 'Erro'}
                           </Badge>
                         </div>
@@ -292,7 +285,7 @@ export default function DashboardPage() {
                     </div>
                   ))}
                   {recentActivity.length === 0 && (
-                    <div className="text-center py-8 text-blue-100">
+                    <div className="text-center py-8 text-gray-400">
                       <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p className="text-sm">
                         Nenhuma atividade recente
@@ -303,7 +296,7 @@ export default function DashboardPage() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="w-full mt-4 bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all duration-300"
+                    className="w-full mt-4 bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 transition-all duration-300"
                     onClick={() => setLocation('/historico')}
                     data-testid="button-view-full-history"
                   >
