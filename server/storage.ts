@@ -94,7 +94,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    // Try to find user by username first, then by email if not found
+    let result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    if (result.length === 0) {
+      // If not found by username, try by email
+      result = await db.select().from(users).where(eq(users.email, username)).limit(1);
+    }
     return result[0];
   }
 
