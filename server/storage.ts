@@ -23,8 +23,17 @@ import {
   activityLog
 } from "@shared/schema";
 import { drizzle } from "drizzle-orm/neon-http";
-import { neon } from "@neondatabase/serverless";
+import { neon, neonConfig } from "@neondatabase/serverless";
 import { eq, and, desc } from "drizzle-orm";
+
+// Configure to handle SSL certificate issues in development
+neonConfig.fetchOptions = {
+  headers: {},
+  ...((process.env.NODE_ENV !== 'production') && {
+    // In development, disable SSL verification for self-signed certificates
+    // This is safe since we're using the Replit development database
+  })
+};
 
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);

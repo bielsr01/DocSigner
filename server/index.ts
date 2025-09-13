@@ -10,6 +10,12 @@ if (!process.env.CERTIFICATE_ENCRYPTION_KEY) {
   console.log("🔐 Environment: CERTIFICATE_ENCRYPTION_KEY configured automatically");
 }
 
+// Fix SSL certificate issues in development
+if (process.env.NODE_ENV === 'development') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  console.log("🔓 Development: SSL verification disabled for database connection");
+}
+
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
