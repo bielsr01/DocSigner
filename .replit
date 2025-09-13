@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "php-8.2", "cpp-clang14", "python-3.12"]
+modules = ["nodejs-20", "php-8.2", "cpp-clang14", "python-3.12", "postgresql-16"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
@@ -14,10 +14,6 @@ run = ["npm", "run", "start"]
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 33143
-externalPort = 4200
 
 [[ports]]
 localPort = 36367
