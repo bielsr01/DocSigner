@@ -11,6 +11,7 @@ import { LoginForm } from "@/components/login-form";
 import DashboardPage from "@/pages/dashboard";
 import ModelosPage from "@/pages/modelos";
 import GerarDocumentosPage from "@/pages/gerar-documentos";
+import GerarV2Page from "@/pages/gerar-v2";
 import AssinarDocumentosPage from "@/pages/assinar-documentos";
 import CertificadosPage from "@/pages/certificados";
 import HistoricoPage from "@/pages/historico";
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/" component={() => <DashboardPage />} />
       <Route path="/modelos" component={() => <ModelosPage />} />
       <Route path="/gerar" component={() => <GerarDocumentosPage />} />
+      <Route path="/gerar-v2" component={() => <GerarV2Page />} />
       <Route path="/assinar" component={() => <AssinarDocumentosPage />} />
       <Route path="/certificados" component={() => <CertificadosPage />} />
       <Route path="/historico" component={() => <HistoricoPage />} />

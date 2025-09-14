@@ -346,6 +346,185 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rota para gerar múltiplos modelos simultaneamente (Gerar V2)
+  app.post("/api/generate-multi-model", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { batchName, models, certificateId, outputFormat } = req.body;
+      
+      if (!batchName || !models || !Array.isArray(models) || models.length === 0) {
+        return res.status(400).json({ error: "Batch name and models array required" });
+      }
+      
+      // Validate all models have required fields
+      for (const model of models) {
+        if (!model.templateId || !model.variables || !model.documentName) {
+          return res.status(400).json({ error: "Each model must have templateId, variables, and documentName" });
+        }
+      }
+      
+      // Create a batch for all documents
+      const batch = await storage.createBatch({
+        label: batchName,
+        templateId: null, // Multiple templates
+        totalDocuments: models.length.toString(),
+        completedDocuments: "0"
+      }, userId);
+      
+      const createdDocuments = [];
+      let successCount = 0;
+      let failCount = 0;
+      
+      // Process each model
+      for (let index = 0; index < models.length; index++) {
+        const model = models[index];
+        
+        try {
+          // Get template
+          const template = await storage.getTemplate(model.templateId, userId);
+          if (!template) {
+            console.error(`Template not found: ${model.templateId}`);
+            failCount++;
+            continue;
+          }
+          
+          // Create document
+          const documentFilename = `${model.documentName}.pdf`;
+          const document = await storage.createDocument({
+            templateId: model.templateId,
+            batchId: batch.id,
+            filename: documentFilename,
+            variables: JSON.stringify(model.variables),
+            status: "processing"
+          }, userId);
+          
+          let documentStatus = "failed";
+          let errorMessage = "";
+          
+          try {
+            // Generate the actual PDF file
+            const outputDir = 'uploads/documents';
+            const outputPath = path.join(outputDir, document.filename);
+            
+            // Ensure output directory exists
+            if (!fs.existsSync(outputDir)) {
+              fs.mkdirSync(outputDir, { recursive: true });
+            }
+            
+            console.log(`Starting PDF generation for multi-model document: ${document.filename}`);
+            console.log(`Template: ${template.storageRef}, Output: ${outputPath}`);
+            
+            // Parse variables data
+            const variablesData = model.variables;
+            console.log(`Variables for ${document.filename}:`, variablesData);
+            
+            // Generate document using the same method as single generation
+            console.log('🚀🔐 Usando DocumentGenerator para múltiplos modelos');
+            try {
+              const result = await DocumentGenerator.generateAndSignDocument(
+                template.storageRef,
+                variablesData,
+                outputPath,
+                userId,
+                document.id,
+                storage
+              );
+              
+              // Use return value to determine correct status
+              documentStatus = result.signed ? "signed" : "ready";
+              console.log(`✅ Multi-model DocumentGenerator: Documento ${result.signed ? 'assinado' : 'gerado'} com sucesso!`);
+            } catch (generatorError: any) {
+              console.log('⚠️ Multi-model DocumentGenerator falhou:', generatorError?.message);
+              documentStatus = "failed";
+              errorMessage = generatorError?.message || 'Erro na geração/assinatura';
+            }
+
+            console.log(`📄 Multi-model documento ${document.filename}: Status = ${documentStatus}`);
+            
+            // Verify the file was actually created (only if not failed)
+            if (documentStatus !== "failed" && !fs.existsSync(outputPath)) {
+              throw new Error('PDF file was not created successfully');
+            }
+            
+            // Update document with storage reference
+            if (documentStatus !== "failed") {
+              await storage.updateDocument(document.id, {
+                storageRef: outputPath,
+                status: documentStatus
+              }, userId);
+            } else {
+              await storage.updateDocument(document.id, {
+                status: "failed"
+              }, userId);
+            }
+            
+            successCount++;
+            console.log(`✅ Multi-model PDF generation completed for: ${document.filename}`);
+            
+          } catch (pdfError) {
+            console.error(`❌ Multi-model PDF generation failed for document ${document.id} (${document.filename}):`, pdfError);
+            errorMessage = pdfError instanceof Error ? pdfError.message : 'Unknown error occurred during PDF generation';
+            failCount++;
+            
+            // Update document status to failed
+            await storage.updateDocument(document.id, {
+              status: "failed"
+            }, userId);
+          }
+          
+          createdDocuments.push({
+            id: document.id,
+            filename: document.filename,
+            status: documentStatus,
+            templateName: template.name,
+            error: errorMessage || undefined
+          });
+          
+        } catch (modelError) {
+          console.error(`Error processing model ${index + 1}:`, modelError);
+          failCount++;
+        }
+      }
+      
+      // Update batch completion count
+      await storage.updateBatch(batch.id, {
+        completedDocuments: successCount.toString(),
+        status: failCount === 0 ? "completed" : (successCount > 0 ? "partial" : "failed")
+      }, userId);
+      
+      // Log activity
+      await storage.createActivityLog({
+        type: "batch",
+        action: "multi_model_generation_completed",
+        refId: batch.id,
+        status: failCount === 0 ? "success" : (successCount > 0 ? "warning" : "error"),
+        message: `Multi-model batch "${batchName}" completed: ${successCount} success, ${failCount} failed`,
+        details: JSON.stringify({
+          batchId: batch.id,
+          totalModels: models.length,
+          successCount,
+          failCount,
+          outputFormat
+        })
+      }, userId);
+      
+      res.json({
+        success: successCount > 0,
+        message: `Multi-model generation completed: ${successCount} documents generated successfully, ${failCount} failed`,
+        batchId: batch.id,
+        batchName,
+        documents: createdDocuments,
+        totalGenerated: successCount,
+        totalFailed: failCount,
+        totalModels: models.length
+      });
+      
+    } catch (error) {
+      console.error('Multi-model generation error:', error);
+      res.status(500).json({ error: 'Failed to generate multi-model documents' });
+    }
+  });
+
   // Certificates routes
   app.get("/api/certificates", isAuthenticated, async (req, res) => {
     try {

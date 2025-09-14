@@ -49,6 +49,11 @@ export function AppSidebar({ currentUser, onLogout }: AppSidebarProps) {
       icon: FileText,
     },
     {
+      title: "Gerar V2",
+      url: "/gerar-v2",
+      icon: FileText,
+    },
+    {
       title: "Assinar Documentos",
       url: "/assinar",
       icon: Upload,
