@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "php-8.2", "cpp-clang14", "python-3.12"]
+modules = ["nodejs-20", "php-8.2", "cpp-clang14", "python-3.12", "postgresql-16"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
