@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Plus, Trash2, Download, Archive, Loader2, FileSignature } from "lucide-react";
+import { FileText, Plus, Trash2, Archive, Loader2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
@@ -21,16 +21,7 @@ interface Template {
   storageRef: string;
 }
 
-interface Certificate {
-  id: string;
-  name: string;
-  type: string;
-  validTo: string;
-  validFrom: string;
-  serial?: string;
-  originalFilename?: string;
-  createdAt: string;
-}
+// Certificate interface removed - ZIP-only generation
 
 interface SelectedModel {
   id: string;
@@ -42,7 +33,6 @@ interface SelectedModel {
 
 export default function GerarV2Page() {
   const [selectedModels, setSelectedModels] = useState<SelectedModel[]>([]);
-  const [selectedCertificate, setSelectedCertificate] = useState('');
   const [batchName, setBatchName] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
@@ -53,11 +43,7 @@ export default function GerarV2Page() {
     enabled: true
   }) as { data: Template[]; isLoading: boolean };
 
-  // Fetch certificates from API
-  const { data: certificates = [], isLoading: certificatesLoading } = useQuery({
-    queryKey: ['/api/certificates'],
-    enabled: true
-  }) as { data: Certificate[]; isLoading: boolean };
+  // Certificate functionality removed - documents are generated as ZIP only
 
   const addNewModel = () => {
     const newModel: SelectedModel = {
@@ -115,7 +101,7 @@ export default function GerarV2Page() {
     ));
   };
 
-  const generateDocuments = async (outputFormat: 'zip' | 'pdf-signed') => {
+  const generateDocuments = async () => {
     if (selectedModels.length === 0) {
       toast({
         title: "Erro",
@@ -161,15 +147,6 @@ export default function GerarV2Page() {
       }
     }
 
-    if (outputFormat === 'pdf-signed' && !selectedCertificate) {
-      toast({
-        title: "Erro",
-        description: "Selecione um certificado para gerar documentos assinados",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setIsGenerating(true);
 
     try {
@@ -182,43 +159,45 @@ export default function GerarV2Page() {
         body: JSON.stringify({
           batchName,
           models: selectedModels,
-          certificateId: outputFormat === 'pdf-signed' ? selectedCertificate : null,
-          outputFormat
+          certificateId: null,
+          outputFormat: 'zip'
         }),
       });
 
       if (response.ok) {
         const result = await response.json();
         
-        if (outputFormat === 'zip') {
-          // Download the ZIP file
-          const downloadResponse = await fetch(`/api/download-batch-zip/${result.batchId}`, {
-            credentials: 'include'
-          });
-          
-          if (downloadResponse.ok) {
-            const blob = await downloadResponse.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = `${batchName}.zip`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-          }
-        }
-
-        toast({
-          title: "Sucesso",
-          description: `${selectedModels.length} documentos gerados com sucesso!`,
+        // Download the ZIP file automatically
+        const downloadResponse = await fetch(`/api/download-batch-zip/${result.batchId}`, {
+          credentials: 'include'
         });
+        
+        if (downloadResponse.ok) {
+          const blob = await downloadResponse.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = `${batchName}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          
+          toast({
+            title: "Sucesso",
+            description: `${selectedModels.length} documentos gerados e baixados em ZIP!`,
+          });
+        } else {
+          toast({
+            title: "Sucesso",
+            description: `${selectedModels.length} documentos gerados com sucesso!`,
+          });
+        }
 
         // Reset form
         setSelectedModels([]);
         setBatchName('');
-        setSelectedCertificate('');
 
       } else {
         const errorText = await response.text();
@@ -252,8 +231,8 @@ export default function GerarV2Page() {
       <div className="flex items-center gap-3">
         <FileText className="h-8 w-8 text-primary" />
         <div>
-          <h1 className="text-3xl font-bold" data-testid="text-page-title">Gerar V2 - Múltiplos Modelos</h1>
-          <p className="text-muted-foreground">Gere documentos de vários modelos diferentes simultaneamente</p>
+          <h1 className="text-3xl font-bold" data-testid="text-page-title">Gerar Documentos</h1>
+          <p className="text-muted-foreground">Gere documentos de múltiplos modelos e baixe automaticamente em ZIP</p>
         </div>
       </div>
 
@@ -389,68 +368,29 @@ export default function GerarV2Page() {
             })}
           </div>
 
-          <Separator />
 
-          {/* Certificate Selection for Signed PDFs */}
-          <div className="grid w-full items-center gap-2">
-            <Label htmlFor="certificate">Certificado (para PDFs assinados)</Label>
-            <Select
-              value={selectedCertificate}
-              onValueChange={setSelectedCertificate}
-              data-testid="select-certificate"
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um certificado" />
-              </SelectTrigger>
-              <SelectContent>
-                {certificates.map((cert) => (
-                  <SelectItem key={cert.id} value={cert.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{cert.name}</span>
-                      <Badge variant="outline">{cert.type}</Badge>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Generation Buttons */}
-          <div className="flex gap-3 pt-4">
+          {/* Generation Button */}
+          <div className="flex justify-center pt-4">
             <Button
-              onClick={() => generateDocuments('zip')}
+              onClick={generateDocuments}
               disabled={isGenerating || selectedModels.length === 0}
-              className="flex items-center gap-2"
-              data-testid="button-generate-zip"
+              size="lg"
+              className="flex items-center gap-2 px-8"
+              data-testid="button-generate-documents"
             >
               {isGenerating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Archive className="h-4 w-4" />
               )}
-              Gerar ZIP
-            </Button>
-
-            <Button
-              onClick={() => generateDocuments('pdf-signed')}
-              disabled={isGenerating || selectedModels.length === 0 || !selectedCertificate}
-              variant="secondary"
-              className="flex items-center gap-2"
-              data-testid="button-generate-signed"
-            >
-              {isGenerating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileSignature className="h-4 w-4" />
-              )}
-              Gerar PDF Assinado
+              {isGenerating ? 'Gerando Documentos...' : 'Gerar Documentos'}
             </Button>
           </div>
 
           {selectedModels.length > 0 && (
             <div className="bg-muted/50 rounded-lg p-4">
               <p className="text-sm text-muted-foreground">
-                <strong>{selectedModels.length}</strong> modelo(s) configurado(s) para geração
+                <strong>{selectedModels.length}</strong> documento(s) serão gerados em ZIP
                 {batchName && (
                   <span> • Lote: <strong>{batchName}</strong></span>
                 )}
