@@ -103,6 +103,7 @@ export default function GerarV2Page() {
 
   const [generatedBatchId, setGeneratedBatchId] = useState<string | null>(null);
   const [showDownloadButton, setShowDownloadButton] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const generateDocuments = async () => {
     if (selectedModels.length === 0) {
@@ -219,6 +220,8 @@ export default function GerarV2Page() {
       return;
     }
 
+    setIsDownloading(true);
+
     try {
       const downloadResponse = await fetch(`/api/batches/${generatedBatchId}/download`, {
         credentials: 'include'
@@ -261,6 +264,8 @@ export default function GerarV2Page() {
         description: "Erro de conexão no download. Tente novamente.",
         variant: "destructive"
       });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -435,13 +440,18 @@ export default function GerarV2Page() {
             {showDownloadButton && generatedBatchId && (
               <Button
                 onClick={downloadZipFile}
+                disabled={isDownloading}
                 variant="default"
                 size="lg"
                 className="flex items-center gap-2 px-8 bg-green-600 hover:bg-green-700"
                 data-testid="button-download-zip"
               >
-                <Archive className="h-4 w-4" />
-                Baixar ZIP
+                {isDownloading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Archive className="h-4 w-4" />
+                )}
+                {isDownloading ? 'Baixando ZIP...' : 'Baixar ZIP'}
               </Button>
             )}
           </div>
