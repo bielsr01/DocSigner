@@ -101,6 +101,9 @@ export default function GerarV2Page() {
     ));
   };
 
+  const [generatedBatchId, setGeneratedBatchId] = useState<string | null>(null);
+  const [showDownloadButton, setShowDownloadButton] = useState(false);
+
   const generateDocuments = async () => {
     if (selectedModels.length === 0) {
       toast({
@@ -148,6 +151,8 @@ export default function GerarV2Page() {
     }
 
     setIsGenerating(true);
+    setShowDownloadButton(false);
+    setGeneratedBatchId(null);
 
     try {
       const response = await fetch('/api/generate-multi-model', {
@@ -166,38 +171,23 @@ export default function GerarV2Page() {
 
       if (response.ok) {
         const result = await response.json();
+        console.log('Generation result:', result);
         
-        // Download the ZIP file automatically
-        const downloadResponse = await fetch(`/api/download-batch-zip/${result.batchId}`, {
-          credentials: 'include'
-        });
-        
-        if (downloadResponse.ok) {
-          const blob = await downloadResponse.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = url;
-          a.download = `${batchName}.zip`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
+        if (result.batchId) {
+          setGeneratedBatchId(result.batchId);
+          setShowDownloadButton(true);
           
           toast({
             title: "Sucesso",
-            description: `${selectedModels.length} documentos gerados e baixados em ZIP!`,
+            description: `${selectedModels.length} documentos gerados com sucesso! Use o botão abaixo para baixar o ZIP.`,
           });
         } else {
           toast({
-            title: "Sucesso",
-            description: `${selectedModels.length} documentos gerados com sucesso!`,
+            title: "Aviso",
+            description: "Documentos gerados, mas não foi possível criar o lote para download",
+            variant: "destructive"
           });
         }
-
-        // Reset form
-        setSelectedModels([]);
-        setBatchName('');
 
       } else {
         const errorText = await response.text();
@@ -216,6 +206,61 @@ export default function GerarV2Page() {
       });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const downloadZipFile = async () => {
+    if (!generatedBatchId) {
+      toast({
+        title: "Erro",
+        description: "ID do lote não encontrado",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const downloadResponse = await fetch(`/api/batches/${generatedBatchId}/download`, {
+        credentials: 'include'
+      });
+      
+      if (downloadResponse.ok) {
+        const blob = await downloadResponse.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `${batchName}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        toast({
+          title: "Sucesso",
+          description: "ZIP baixado com sucesso!",
+        });
+        
+        // Reset form after successful download
+        setSelectedModels([]);
+        setBatchName('');
+        setShowDownloadButton(false);
+        setGeneratedBatchId(null);
+      } else {
+        const errorText = await downloadResponse.text();
+        toast({
+          title: "Erro no download",
+          description: errorText,
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Erro",
+        description: "Erro de conexão no download. Tente novamente.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -370,7 +415,7 @@ export default function GerarV2Page() {
 
 
           {/* Generation Button */}
-          <div className="flex justify-center pt-4">
+          <div className="flex justify-center pt-4 space-x-4">
             <Button
               onClick={generateDocuments}
               disabled={isGenerating || selectedModels.length === 0}
@@ -385,6 +430,20 @@ export default function GerarV2Page() {
               )}
               {isGenerating ? 'Gerando Documentos...' : 'Gerar Documentos'}
             </Button>
+
+            {/* Download Button - appears after generation */}
+            {showDownloadButton && generatedBatchId && (
+              <Button
+                onClick={downloadZipFile}
+                variant="default"
+                size="lg"
+                className="flex items-center gap-2 px-8 bg-green-600 hover:bg-green-700"
+                data-testid="button-download-zip"
+              >
+                <Archive className="h-4 w-4" />
+                Baixar ZIP
+              </Button>
+            )}
           </div>
 
           {selectedModels.length > 0 && (
